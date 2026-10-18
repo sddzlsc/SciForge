@@ -259,14 +259,22 @@
           <div class="panel">
             <div class="panel-head">
               <h2>添加 / 编辑服务器</h2>
-              <span class="muted">保存到本机 ~/.sciforge/config.toml（0600）；无需在网页填写密码</span>
+              <span class="muted">保存到本机 ~/.sciforge/config.toml（0600）；密码只用于 SSH 登录，长期建议改用 Key</span>
             </div>
             <form id="srv-form" class="config-form" autocomplete="off">
+              <label class="field" style="grid-column:1/-1"><span>粘贴 SSH 登录命令（自动解析，推荐）</span>
+                <div class="input-action">
+                  <input id="srv-command" placeholder="ssh -p 48322 root@connect.bjb2.seetacloud.com" spellcheck="false">
+                  <button type="button" class="btn btn-ghost btn-sm" id="srv-parse-btn">解析</button>
+                </div>
+              </label>
               <label class="field"><span>名称 *</span><input id="srv-name" required placeholder="gpu1" spellcheck="false"></label>
               <label class="field grow"><span>Host / IP *</span><input id="srv-host" required placeholder="10.0.0.2 或 gpu.example.com" spellcheck="false"></label>
               <label class="field"><span>端口</span><input id="srv-port" type="number" value="22" min="1" max="65535"></label>
               <label class="field"><span>用户名</span><input id="srv-user" value="root"></label>
               <label class="field grow"><span>SSH 私钥路径</span><input id="srv-key" placeholder="~/.ssh/id_ed25519（留空则用 ssh config / agent）" spellcheck="false"></label>
+              <label class="field"><span>登录密码（可选）</span><input id="srv-password" type="password" autocomplete="new-password" placeholder="AutoDL 等密码登录；留空保持不变"></label>
+              <label class="switch field-switch"><input type="checkbox" id="srv-clear-password"><span class="switch-track"></span><span class="switch-text">清除已存密码</span></label>
               <label class="field grow"><span>远端工作目录</span><input id="srv-workdir" value="~/sciforge"></label>
               <label class="field"><span>Conda 环境</span><input id="srv-conda" placeholder="torch（可选）"></label>
               <label class="field"><span>tmux 会话名</span><input id="srv-tmux" value="sciforge"></label>

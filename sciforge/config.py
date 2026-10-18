@@ -167,7 +167,8 @@ class ServerConfig(_Model):
     port: int = 22
     user: str = "root"
     identity_file: str | None = None
-    password_env: str | None = None  # 需要 sshpass 时的环境变量名
+    password_env: str | None = None  # 从环境变量读取密码（优先于 password）
+    password: str | None = None  # 仅存本机配置（0600）；更推荐用 SSH Key
     proxy_jump: str | None = None  # 跳板：user@host
     workdir: str = "~/sciforge"
     conda_env: str | None = None

@@ -158,6 +158,8 @@ class ServerForm(BaseModel):
     user: str = "root"
     identity_file: str | None = None
     proxy_jump: str | None = None
+    password: str | None = None
+    clear_password: bool = False
     workdir: str = "~/sciforge"
     conda_env: str | None = None
     python: str = "python"
@@ -378,7 +380,8 @@ def _server_public(server: Any) -> dict[str, Any]:
     """服务器配置脱敏：绝不含 api_key / 密码 / 环境变量值。"""
     identity = getattr(server, "identity_file", None)
     has_password_env = bool(getattr(server, "password_env", None))
-    auth = "ssh-config" if not identity and not has_password_env else ("password-env" if has_password_env else "ssh-key")
+    has_password = bool(getattr(server, "password", None))
+    auth = "password" if (has_password or has_password_env) else ("ssh-key" if identity else "ssh-config")
     return {
         "name": getattr(server, "name", ""),
         "host": getattr(server, "host", ""),
@@ -393,6 +396,7 @@ def _server_public(server: Any) -> dict[str, Any]:
         "identity_file": identity,  # 路径可展示，不读取内容
         "auth": auth,
         "has_password_env": has_password_env,
+        "has_password": has_password,
         "proxy_jump": getattr(server, "proxy_jump", None),
         "python": getattr(server, "python", "python"),
         "max_parallel_jobs": int(getattr(server, "max_parallel_jobs", 2) or 2),
@@ -1517,6 +1521,19 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
         }
 
     # ---------------------------- GPU 服务器配置（GUI） ----------------------------
+    @app.post("/api/servers/parse")
+    def api_server_parse(payload: dict[str, Any]) -> dict[str, Any]:
+        command = str(payload.get("command") or "").strip()
+        if not command:
+            raise HTTPException(status_code=400, detail="请粘贴 ssh 登录命令")
+        try:
+            from sciforge.tools.remote import parse_ssh_command
+
+            parsed = parse_ssh_command(command)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True, "parsed": parsed}
+
     @app.post("/api/servers")
     def api_server_save(form: ServerForm) -> dict[str, Any]:
         name = (form.name or "").strip()
@@ -1527,11 +1544,21 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             raise HTTPException(status_code=400, detail="host 不能为空")
         if form.scheduler not in ("none", "slurm"):
             raise HTTPException(status_code=400, detail="scheduler 只能是 none 或 slurm")
+        existing = settings.server(name)
+        data = form.model_dump(exclude={"password", "clear_password"})
+        if form.clear_password:
+            data["password"] = None
+        elif form.password is not None and form.password.strip():
+            data["password"] = form.password.strip()
+        elif existing is not None:
+            data["password"] = existing.password
+        else:
+            data["password"] = None
         try:
-            server = ServerConfig(**form.model_dump())
+            server = ServerConfig(**data)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=400, detail=f"服务器配置不合法：{exc}") from exc
-        servers = [existing for existing in settings.servers if existing.name != name]
+        servers = [item for item in settings.servers if item.name != name]
         servers.append(server)
         settings.servers = servers
         save_global_config(settings)

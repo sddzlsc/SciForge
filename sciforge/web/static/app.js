@@ -1210,12 +1210,15 @@
     $('#srv-scheduler').value = server.scheduler || 'none';
     $('#srv-partition').value = server.partition || '';
     $('#srv-parallel').value = server.max_parallel_jobs || 2;
+    $('#srv-password').value = '';
+    $('#srv-clear-password').checked = false;
+    $('#srv-command').value = 'ssh -p ' + (server.port || 22) + ' ' + (server.user || 'root') + '@' + (server.host || '');
     $('#srv-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
     toast('已载入服务器 ' + name + '，修改后点击保存', 'info', 3500);
   }
 
   function resetServerForm() {
-    ['srv-name', 'srv-host', 'srv-key', 'srv-proxy', 'srv-conda', 'srv-partition'].forEach((id) => {
+    ['srv-name', 'srv-host', 'srv-key', 'srv-proxy', 'srv-conda', 'srv-partition', 'srv-command', 'srv-password'].forEach((id) => {
       const node = document.getElementById(id);
       if (node) node.value = '';
     });
@@ -1225,11 +1228,12 @@
     $('#srv-tmux').value = 'sciforge';
     $('#srv-scheduler').value = 'none';
     $('#srv-parallel').value = 2;
+    $('#srv-clear-password').checked = false;
     $('#srv-form-result').classList.add('hidden');
   }
 
   function collectServerForm() {
-    return {
+    const body = {
       name: $('#srv-name').value.trim(),
       host: $('#srv-host').value.trim(),
       port: Number($('#srv-port').value || 22),
@@ -1243,7 +1247,11 @@
       partition: $('#srv-partition').value.trim() || null,
       max_parallel_jobs: Number($('#srv-parallel').value || 2),
       auto_mkdir: true,
+      clear_password: $('#srv-clear-password').checked,
     };
+    const password = $('#srv-password').value;
+    if (password) body.password = password;
+    return body;
   }
 
   async function saveServer(andTest) {
@@ -1299,7 +1307,37 @@
     }
   }
 
+  async function parseSshCommand() {
+    const command = $('#srv-command').value.trim();
+    if (!command) {
+      toast('先粘贴 ssh 登录命令，例如：ssh -p 48322 root@host', 'warn', 5000);
+      return;
+    }
+    try {
+      const data = await apiPost('/api/servers/parse', { command: command });
+      const parsed = data.parsed || {};
+      if (parsed.host) $('#srv-host').value = parsed.host;
+      if (parsed.port) $('#srv-port').value = parsed.port;
+      if (parsed.user) $('#srv-user').value = parsed.user;
+      if (parsed.identity_file) $('#srv-key').value = parsed.identity_file;
+      if (parsed.proxy_jump) $('#srv-proxy').value = parsed.proxy_jump;
+      if (!$('#srv-name').value.trim() && parsed.host) {
+        $('#srv-name').value = String(parsed.host).split('.')[0] || 'gpu';
+      }
+      toast('已解析：' + (parsed.user || '') + '@' + parsed.host + ':' + parsed.port, 'ok', 4000);
+    } catch (err) {
+      toast('解析失败：' + err.message, 'err', 8000);
+    }
+  }
+
   function bindServers() {
+    $('#srv-parse-btn').addEventListener('click', parseSshCommand);
+    $('#srv-command').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        parseSshCommand();
+      }
+    });
     $('#gpu-refresh').addEventListener('click', () => {
       const target = state.servers.length ? state.servers[0].name : null;
       probeGpu(target);

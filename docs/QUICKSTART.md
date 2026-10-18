@@ -87,7 +87,7 @@ sciforge serve --open            # 等价；不带 --open 时手动打开 URL
 
 **三个配置都可以在 GUI 里填空完成**（保存到 ~/.sciforge/config.toml，0600）：
 - 模型：Provider 名称 / Base URL / 模型 / API Key / 角色路由 → 「保存并测试」
-- 服务器：host / 端口 / 用户 / 私钥 / workdir / conda / Slurm → 「保存并测试 SSH」
+- 服务器：直接粘贴 `ssh -p 端口 user@host` 命令点「解析」，或手填 host/端口/用户/私钥/**密码** → 「保存并测试 SSH」
 - 文献：邮箱（Unpaywall OA）/ 每日 arXiv 语言 → 「保存检索设置」
 无 API key 时会自动进入离线 Mock 演示，配好 key 后同一界面直接走真实模型。
 

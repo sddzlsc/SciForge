@@ -28,6 +28,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -125,6 +126,95 @@ class RemoteResult:
         }
 
 
+def parse_ssh_command(text: str) -> dict[str, Any]:
+    """解析用户粘贴的 ``ssh`` 登录命令，提取 host / port / user / key。
+
+    支持：``ssh -p 48322 root@host``、``ssh root@host -p 2222``、
+    ``ssh -i ~/.ssh/id_ed25519 -p 22 user@host``、``sshpass -p xxx ssh root@host``、
+    以及裸 ``user@host:port``。无法识别 host 时抛 :class:`ValueError`。
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        raise ValueError("请粘贴 ssh 登录命令，例如：ssh -p 48322 root@connect.example.com")
+    try:
+        tokens = shlex.split(raw)
+    except ValueError as exc:
+        raise ValueError(f"命令解析失败：{exc}") from exc
+    # 兼容 sshpass -p xxx ssh ... / 前置代理命令：从 ssh 开始解析
+    for index, token in enumerate(tokens):
+        base = os.path.basename(token)
+        if base in ("ssh", "ssh.exe"):
+            tokens = tokens[index + 1 :]
+            break
+    else:
+        # 没有显式 ssh 命令时，只接受单个裸目标（user@host / host / host:port）
+        if len(tokens) != 1:
+            raise ValueError("没有找到 ssh 命令；请粘贴完整的 ssh 登录命令，例如：ssh -p 48322 root@host")
+        bare = os.path.basename(tokens[0]).lower()
+        if bare in ("scp", "rsync", "sshpass", "ssh-copy-id", "sftp"):
+            raise ValueError("这不是 ssh 登录命令；请粘贴 ssh 命令或只填 user@host")
+        if not ("@" in tokens[0] or "." in tokens[0] or tokens[0].count(":") == 1 or tokens[0].replace("-", "").isalnum()):
+            raise ValueError("没有解析出 host；示例：ssh -p 48322 root@connect.example.com")
+    parsed: dict[str, Any] = {
+        "host": "",
+        "port": 22,
+        "user": "",
+        "identity_file": None,
+        "proxy_jump": None,
+        "raw": raw,
+    }
+    target: str | None = None
+    index = 0
+    # 需要吞掉参数的 ssh 选项（避免把参数误当 host）
+    takes_value = {"-p", "--port", "-i", "--identity-file", "-J", "--proxy-jump", "-l", "-o", "-F", "-c", "-m", "-L", "-R", "-D", "-W", "-b", "-e", "-E", "-I", "-S"}
+    while index < len(tokens):
+        token = tokens[index]
+        if token in ("-p", "--port") and index + 1 < len(tokens):
+            try:
+                parsed["port"] = int(tokens[index + 1])
+            except ValueError:
+                pass
+            index += 2
+            continue
+        if token in ("-i", "--identity-file") and index + 1 < len(tokens):
+            parsed["identity_file"] = tokens[index + 1]
+            index += 2
+            continue
+        if token in ("-J", "--proxy-jump") and index + 1 < len(tokens):
+            parsed["proxy_jump"] = tokens[index + 1]
+            index += 2
+            continue
+        if token == "-l" and index + 1 < len(tokens):
+            parsed["user"] = tokens[index + 1]
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 2 if token in takes_value else 1
+            continue
+        if target is None:
+            target = token
+        index += 1
+    if target:
+        if "@" in target:
+            parsed["user"], target = target.rsplit("@", 1)
+        if target.startswith("[") and "]" in target:  # [ipv6]:port
+            host, _, maybe_port = target[1:].partition("]")
+            parsed["host"] = host
+            if maybe_port.startswith(":") and maybe_port[1:].isdigit():
+                parsed["port"] = int(maybe_port[1:])
+        elif target.count(":") == 1 and target.rsplit(":", 1)[1].isdigit():
+            host, port_text = target.rsplit(":", 1)
+            parsed["host"] = host
+            parsed["port"] = int(port_text)
+        else:
+            parsed["host"] = target
+    if not parsed["host"]:
+        raise ValueError("没有解析出 host；示例：ssh -p 48322 root@connect.bjb2.seetacloud.com")
+    if not parsed["user"]:
+        parsed["user"] = "root"
+    return parsed
+
+
 def _run_process(
     argv: Sequence[str],
     *,
@@ -132,6 +222,8 @@ def _run_process(
     cwd: str | Path | None = None,
     env: Mapping[str, str] | None = None,
     input_text: str | None = None,
+    start_new_session: bool = False,
+    stdin_devnull: bool = False,
 ) -> RemoteResult:
     """执行本地进程（唯一出口；测试 monkeypatch 这里即可）。
 
@@ -151,6 +243,8 @@ def _run_process(
             timeout=timeout,
             env=proc_env,
             input=input_text,
+            start_new_session=start_new_session,
+            stdin=subprocess.DEVNULL if stdin_devnull else None,
         )
         return RemoteResult(
             rc=int(proc.returncode),
@@ -354,13 +448,90 @@ class SSHExecutor:
     def session(self) -> str:
         return str(self.server.tmux_session or "sciforge")
 
+    # -- 认证（密码 / Key / ssh-config） -----------------------------------
+    @property
+    def password(self) -> str:
+        """密码来源：password_env 优先，其次本机配置里的 password。"""
+        env_name = str(getattr(self.server, "password_env", "") or "").strip()
+        if env_name:
+            value = os.environ.get(env_name, "")
+            if value:
+                return value
+        return str(getattr(self.server, "password", "") or "")
+
+    @property
+    def uses_password(self) -> bool:
+        return bool(self.password)
+
+    def _askpass_script(self) -> Path:
+        """生成只读密码的 askpass 脚本（不把密码写进脚本/命令行）。"""
+        cached = getattr(self, "_askpass_path", None)
+        if cached and Path(str(cached)).exists():
+            return Path(str(cached))
+        import tempfile
+
+        handle, name = tempfile.mkstemp(prefix="sciforge-askpass-", suffix=".sh")
+        os.close(handle)
+        path = Path(name)
+        path.write_text('#!/bin/sh\nprintf \'%s\\n\' "${SCIFORGE_SSH_PASSWORD:-}"\n', encoding="utf-8")
+        try:
+            path.chmod(0o700)
+        except OSError:
+            pass
+        self._askpass_path = str(path)
+        return path
+
+    def _askpass_env(self) -> dict[str, str]:
+        return {
+            "SSH_ASKPASS": str(self._askpass_script()),
+            "SSH_ASKPASS_REQUIRE": "force",
+            "DISPLAY": os.environ.get("DISPLAY", ":0"),
+            "SCIFORGE_SSH_PASSWORD": self.password,
+        }
+
+    def _ssh_options(self) -> list[str]:
+        """基础 ssh 选项；密码登录时必须去掉 BatchMode=yes。"""
+        options = list(SSH_OPTIONS)
+        if not self.uses_password:
+            return options
+        filtered: list[str] = []
+        index = 0
+        while index < len(options):
+            if options[index] == "-o" and index + 1 < len(options):
+                if options[index + 1] == "BatchMode=yes":
+                    index += 2
+                    continue
+                filtered += [options[index], options[index + 1]]
+                index += 2
+                continue
+            filtered.append(options[index])
+            index += 1
+        filtered += ["-o", "NumberOfPasswordPrompts=1"]
+        return filtered
+
+    def _execute(self, argv: Sequence[str], *, timeout: float) -> RemoteResult:
+        """单点执行：密码登录时注入 askpass 环境并脱离终端。"""
+        runner = self._runner_fn()
+        if not self.uses_password:
+            return runner(argv, timeout=timeout)
+        kwargs = {
+            "timeout": timeout,
+            "env": self._askpass_env(),
+            "start_new_session": True,
+            "stdin_devnull": True,
+        }
+        try:
+            return runner(argv, **kwargs)
+        except TypeError:  # 测试/自定义 runner 只接受 (argv, timeout=...)
+            return runner(argv, timeout=timeout)
+
     def _runner_fn(self):
         return self._runner or _run_process
 
     # -- argv 构造 --------------------------------------------------------
     def ssh_argv(self, remote_command: str) -> list[str]:
         """构造完整 ssh argv；测试直接断言该列表。"""
-        argv: list[str] = ["ssh", *SSH_OPTIONS]
+        argv: list[str] = ["ssh", *self._ssh_options()]
         port = int(self.server.port or 22)
         if port != 22:
             argv += ["-p", str(port)]
@@ -374,7 +545,7 @@ class SSHExecutor:
 
     def rsync_ssh_string(self) -> str:
         """rsync 的 ``-e`` 参数（内嵌 ssh 选项）。"""
-        parts: list[str] = ["ssh", *SSH_OPTIONS]
+        parts: list[str] = ["ssh", *self._ssh_options()]
         port = int(self.server.port or 22)
         if port != 22:
             parts += ["-p", str(port)]
@@ -410,7 +581,7 @@ class SSHExecutor:
             argv.append(self.rsync_target(remote))
             return argv
         # scp 兜底
-        argv = ["scp", "-r"]
+        argv = ["scp", "-r", *self._ssh_options()]
         port = int(self.server.port or 22)
         if port != 22:
             argv += ["-P", str(port)]
@@ -442,7 +613,7 @@ class SSHExecutor:
             argv += [self.rsync_target(p) for p in resolved]
             argv.append(local + "/")
             return argv
-        argv = ["scp", "-r"]
+        argv = ["scp", "-r", *self._ssh_options()]
         port = int(self.server.port or 22)
         if port != 22:
             argv += ["-P", str(port)]
@@ -458,7 +629,7 @@ class SSHExecutor:
     def run_raw(self, remote_command: str, *, timeout: float | None = None) -> RemoteResult:
         """执行一条已经拼好的远端 shell 命令（通常是 raw 字符串）。"""
         argv = self.ssh_argv(remote_command)
-        return self._runner_fn()(argv, timeout=float(timeout or self.default_timeout))
+        return self._execute(argv, timeout=float(timeout or self.default_timeout))
 
     def run(
         self,
@@ -515,7 +686,7 @@ class SSHExecutor:
         timeout: float = 1800,
     ) -> RemoteResult:
         argv = self.build_upload_argv(local_paths, remote_dir, delete=delete, excludes=excludes)
-        return self._runner_fn()(argv, timeout=timeout)
+        return self._execute(argv, timeout=timeout)
 
     def download_paths(
         self,
@@ -528,7 +699,7 @@ class SSHExecutor:
     ) -> RemoteResult:
         Path(local_dir).expanduser().mkdir(parents=True, exist_ok=True)
         argv = self.build_download_argv(remote_paths, local_dir, delete=delete, excludes=excludes)
-        return self._runner_fn()(argv, timeout=timeout)
+        return self._execute(argv, timeout=timeout)
 
     # -- 后台任务 ---------------------------------------------------------
     def build_detached_script(
@@ -1908,10 +2079,12 @@ def build_ssh_app() -> Any:
     @app.command("add")
     def ssh_add(
         name: str = typer.Argument(..., help="服务器名，如 gpu1"),
-        host: str = typer.Option(..., "--host", help="主机名或 IP"),
+        host: str = typer.Option("", "--host", help="主机名或 IP；可用 --from-command 自动解析"),
         user: str = typer.Option("root", "--user"),
         port: int = typer.Option(22, "--port"),
         key: str = typer.Option(None, "--key", help="identity_file 私钥路径"),
+        password: str = typer.Option(None, "--password", help="SSH 密码（仅存本机 0600；更推荐 Key）"),
+        from_command: str = typer.Option(None, "--from-command", help="粘贴 ssh 登录命令，自动解析 host/port/user"),
         workdir: str = typer.Option("~/sciforge", "--workdir", help="远端工作目录"),
         conda_env: str = typer.Option(None, "--conda-env"),
         tmux_session: str = typer.Option("sciforge", "--tmux-session"),
@@ -1924,12 +2097,26 @@ def build_ssh_app() -> Any:
         from sciforge.config import save_global_config
 
         settings = get_settings()
+        existing = settings.server(name)
+        if from_command:
+            try:
+                parsed = parse_ssh_command(from_command)
+            except ValueError as exc:
+                _fail(str(exc), json_mode=json_mode)
+            host = host or parsed["host"]
+            port = int(port) if "--port" in sys.argv else int(parsed["port"] or 22)
+            user = user if user != "root" else (parsed["user"] or user)
+            key = key or parsed.get("identity_file")
+            proxy_jump = proxy_jump or parsed.get("proxy_jump")
+        if not host:
+            _fail("缺少 host：请用 --host，或用 --from-command 'ssh -p 端口 user@host'", json_mode=json_mode)
         server = ServerConfig(
             name=name,
             host=host,
             port=int(port),
             user=user,
             identity_file=key,
+            password=(password if password is not None else (existing.password if existing else None)),
             workdir=workdir,
             conda_env=conda_env,
             tmux_session=tmux_session,
@@ -2118,6 +2305,7 @@ def add_cli(app: Any) -> None:
 
 __all__ = [
     "SSHExecutor",
+    "parse_ssh_command",
     "LocalExecutor",
     "RemoteResult",
     "make_executor",

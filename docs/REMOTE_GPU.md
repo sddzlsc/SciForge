@@ -25,12 +25,19 @@ env = { CUDA_VISIBLE_DEVICES = "0,1" }
 或：
 
 ```bash
+# Key 登录
 sciforge ssh add gpu1 --host 10.0.0.2 --user root --key ~/.ssh/id_ed25519 \
   --workdir ~/sciforge --conda-env torch
+
+# 粘贴云厂商给的 ssh 命令 + 密码（AutoDL 等）
+sciforge ssh add autodl --from-command "ssh -p 48322 root@connect.bjb2.seetacloud.com" \
+  --password "你的密码"
+
 sciforge ssh test gpu1
 ```
 
-前提：本机已配置好 SSH 免密登录（`ssh-copy-id` / ssh-agent），SciForge 不保存密码。
+前提：推荐本机已配置 SSH 免密登录（`ssh-copy-id` / ssh-agent）。也支持密码登录（见 §2.5），
+密码只存本机 `~/.sciforge/config.toml`（0600）。
 
 ## 2. GPU 状态
 
@@ -40,6 +47,35 @@ sciforge gpu status gpu1 --watch    # 每 5s 刷新
 ```
 
 解析 `nvidia-smi` 输出为表格：GPU 型号 / 显存 / 利用率 / 温度 / 进程。
+
+## 2.5 密码登录 / 粘贴 SSH 命令（AutoDL 等）
+
+很多云 GPU（如 AutoDL）只给一条带端口的登录命令和密码，可直接在 GUI 里粘贴：
+
+```text
+ssh -p 48322 root@connect.bjb2.seetacloud.com
+```
+
+1. 打开 GUI → **服务器** 页；
+2. 在「粘贴 SSH 登录命令」填入上面的命令，点 **解析**（自动填 host / port / user）；
+3. 在「登录密码」填入密码（只保存在本机 `~/.sciforge/config.toml`，0600，不会回传浏览器）；
+4. 点 **保存并测试 SSH**。
+
+实现说明：密码登录使用 OpenSSH 的 `SSH_ASKPASS` 机制，**不需要安装 sshpass**；
+密码不会出现在命令行参数里（只通过子进程环境变量传给 askpass 脚本，脚本本身不含密码）。
+
+> 安全建议：密码是明文保存在本机配置文件里的。长期使用建议改用 SSH Key：
+> `ssh-keygen -t ed25519` + `ssh-copy-id -p 48322 root@host`，然后把「SSH 私钥路径」填成
+> `~/.ssh/id_ed25519`，密码留空。
+
+### 常见错误
+
+| 错误 | 原因 / 处理 |
+|---|---|
+| `Identity file xxx not accessible` | 把密码/AutoDL token 误填进了「SSH 私钥路径」；清空该字段，改用「登录密码」 |
+| `Permission denied (publickey,password)` | 密码错误，或既填了无效私钥又没填密码；清空私钥、填写密码 |
+| `Connection timed out` | 端口/地址错误，或需要先连 VPN；检查 `-p` 端口与 host |
+| 想换回 Key 登录 | 清除密码（勾选「清除已存密码」），私钥路径填对，保存并测试 |
 
 ## 3. 文件同步
 

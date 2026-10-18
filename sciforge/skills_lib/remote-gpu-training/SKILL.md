@@ -22,6 +22,13 @@ metadata:
 - 输入：`settings.servers` 中的服务器名（host/user/key/workdir/conda_env）、训练脚本与配置、需要同步的代码/数据。
 - 输出：远端 run 目录（代码 + 日志 + checkpoint）、可查询的 job id/session 名、`runs/<run_id>/run.json` 记录。
 
+## 连接方式
+
+- Key（推荐）：`sciforge ssh add gpu1 --host <host> --user root --key ~/.ssh/id_ed25519`
+- 云 GPU 密码登录（AutoDL 等）：GUI → 服务器页粘贴 `ssh -p 端口 user@host` 点「解析」，填密码后「保存并测试 SSH」；
+  或 CLI：`sciforge ssh add gpu1 --from-command "ssh -p 48322 root@host" --password "..."`（密码仅存本机 0600）
+- 注意：不要把密码/实例 token 填进「SSH 私钥路径」，否则会报 `Identity file xxx not accessible`。
+
 ## 工作流
 
 1. **先体检**：`gpu_status` 看型号/显存/利用率/占用进程；`remote_run "nvidia-smi; python -V; python -c 'import torch;print(torch.__version__)'"` 确认环境。

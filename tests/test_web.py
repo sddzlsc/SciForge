@@ -822,3 +822,58 @@ def test_literature_config_validation(client: TestClient) -> None:
     assert bad_lang.status_code == 400
     bad_email = client.post("/api/literature/config", json={"email": "not-an-email"})
     assert bad_email.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# SSH 命令解析 / 密码登录（GUI）
+# ---------------------------------------------------------------------------
+
+
+def test_server_parse_endpoint(client: TestClient) -> None:
+    resp = client.post(
+        "/api/servers/parse",
+        json={"command": "ssh -p 48322 root@connect.bjb2.seetacloud.com"},
+    )
+    assert resp.status_code == 200
+    parsed = resp.json()["parsed"]
+    assert parsed["host"] == "connect.bjb2.seetacloud.com"
+    assert parsed["port"] == 48322
+    assert parsed["user"] == "root"
+
+    bad = client.post("/api/servers/parse", json={"command": "not a command"})
+    assert bad.status_code == 400
+
+
+def test_server_password_auth_save_and_mask(client: TestClient, env) -> None:
+    from sciforge.config import global_config_path
+
+    payload = {
+        "name": "autodl",
+        "host": "connect.bjb2.seetacloud.com",
+        "port": 48322,
+        "user": "root",
+        "password": "autodl-secret-pw",
+    }
+    resp = client.post("/api/servers", json=payload)
+    assert resp.status_code == 200, resp.text
+    server = resp.json()["server"]
+    assert server["auth"] == "password"
+    assert server["has_password"] is True
+    for secret_key in ("password", "password_env", "api_key", "token"):
+        assert secret_key not in server
+    assert "autodl-secret-pw" not in json.dumps(resp.json())
+    listed = client.get("/api/servers").json()
+    assert "autodl-secret-pw" not in json.dumps(listed)
+    assert global_config_path().read_text(encoding="utf-8").count("autodl-secret-pw") == 1
+
+    # 编辑时留空密码 => 保留原密码
+    updated = client.post("/api/servers", json={**payload, "password": None, "port": 2222})
+    assert updated.status_code == 200
+    assert updated.json()["server"]["port"] == 2222
+    assert updated.json()["server"]["has_password"] is True
+
+    # 显式清除密码
+    cleared = client.post("/api/servers", json={**payload, "clear_password": True})
+    assert cleared.status_code == 200
+    assert cleared.json()["server"]["has_password"] is False
+    assert "autodl-secret-pw" not in global_config_path().read_text(encoding="utf-8")

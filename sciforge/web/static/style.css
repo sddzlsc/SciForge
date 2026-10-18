@@ -1188,3 +1188,8 @@ details.panel > summary::before { content: "▸"; color: var(--muted-2); margin-
 details.panel[open] > summary::before { content: "▾"; }
 details.panel[open] > summary { margin-bottom: 12px; }
 details.panel #lit-config-notice, details.panel #lit-sources { margin-top: 12px; }
+
+
+/* SSH 命令粘贴 + 解析 */
+.input-action { display: flex; gap: 8px; align-items: stretch; }
+.input-action input { flex: 1; min-width: 0; }

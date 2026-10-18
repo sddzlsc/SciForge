@@ -949,3 +949,85 @@ def test_registered_remote_tools() -> None:
         assert tool is not None, f"工具未注册: {name}"
         assert "remote" in tool.tags
         assert tool.parameters.get("type") == "object"
+
+
+# ---------------------------------------------------------------------------
+# SSH 命令解析 / 密码认证（AskPass）
+# ---------------------------------------------------------------------------
+
+
+def test_parse_ssh_command_variants() -> None:
+    from sciforge.tools.remote import parse_ssh_command
+
+    parsed = parse_ssh_command("ssh -p 48322 root@connect.bjb2.seetacloud.com")
+    assert parsed["host"] == "connect.bjb2.seetacloud.com"
+    assert parsed["port"] == 48322
+    assert parsed["user"] == "root"
+
+    parsed = parse_ssh_command("ssh -i ~/.ssh/id_ed25519 -p 2222 lab@10.0.0.9")
+    assert parsed["user"] == "lab"
+    assert parsed["port"] == 2222
+    assert parsed["identity_file"] == "~/.ssh/id_ed25519"
+
+    parsed = parse_ssh_command("sshpass -p secret ssh root@gpu.example.com")
+    assert parsed["host"] == "gpu.example.com"
+    assert parsed["user"] == "root"
+
+    parsed = parse_ssh_command("ssh my-gpu")
+    assert parsed["host"] == "my-gpu"
+    assert parsed["user"] == "root"
+
+    with pytest.raises(ValueError):
+        parse_ssh_command("")
+    with pytest.raises(ValueError):
+        parse_ssh_command("scp local.txt host:/tmp")
+
+
+def test_password_auth_argv_and_askpass() -> None:
+    from pathlib import Path
+
+    from sciforge.config import ServerConfig
+    from sciforge.tools.remote import SSHExecutor
+
+    server = ServerConfig(
+        name="gpu1", host="connect.example.com", port=48322, user="root", password="pw-secret"
+    )
+    executor = SSHExecutor(server)
+    argv = executor.ssh_argv("echo hi")
+    assert "BatchMode=yes" not in argv
+    assert "NumberOfPasswordPrompts=1" in argv
+    assert argv[argv.index("-p") + 1] == "48322"
+
+    env = executor._askpass_env()
+    assert env["SSH_ASKPASS_REQUIRE"] == "force"
+    assert env["SCIFORGE_SSH_PASSWORD"] == "pw-secret"
+    script = Path(env["SSH_ASKPASS"])
+    assert script.exists()
+    assert "pw-secret" not in script.read_text(encoding="utf-8")
+    assert "SCIFORGE_SSH_PASSWORD" in script.read_text(encoding="utf-8")
+
+
+def test_password_execute_passes_askpass_kwargs() -> None:
+    from sciforge.config import ServerConfig
+    from sciforge.tools.remote import RemoteResult, SSHExecutor
+
+    server = ServerConfig(name="gpu1", host="h", user="root", password="pw")
+    captured: dict = {}
+
+    def runner(argv, **kwargs):  # noqa: ANN001, ANN003
+        captured["argv"] = argv
+        captured.update(kwargs)
+        return RemoteResult(0, "ok", "")
+
+    executor = SSHExecutor(server, runner=runner)
+    result = executor.run_raw("true")
+    assert result.rc == 0
+    assert captured["start_new_session"] is True
+    assert captured["stdin_devnull"] is True
+    assert captured["env"]["SSH_ASKPASS_REQUIRE"] == "force"
+
+    # 无密码时不应注入 askpass 参数（兼容旧 runner）
+    plain = SSHExecutor(ServerConfig(name="k", host="h", user="root"), runner=runner)
+    captured.clear()
+    plain.run_raw("true")
+    assert "env" not in captured

@@ -786,42 +786,35 @@ def test_literature_config_get_lists_sources(client: TestClient) -> None:
     assert data.status_code == 200
     payload = data.json()
     assert payload["ok"] is True
-    ids = {item["id"] for item in payload["sources"]}
-    assert {"arxiv", "daily", "openalex", "crossref", "hf_papers", "semantic_scholar"} <= ids
-    assert payload["s2_key_status"] == "missing"
+    search_ids = {item["id"] for item in payload["search_sources"]}
+    assert {"arxiv", "daily", "openalex", "crossref", "hf_papers"} <= search_ids
+    assert "semantic_scholar" not in search_ids
+    fulltext_ids = {item["id"] for item in payload["fulltext_sources"]}
+    assert {"arxiv_pdf", "unpaywall", "openalex_oa", "instsci"} <= fulltext_ids
+    assert "Sci-Hub" in payload["policy"]
 
 
-def test_literature_config_save_persists_and_masks(client: TestClient, env) -> None:
+def test_literature_config_save_persists(client: TestClient, env) -> None:
     from sciforge.config import global_config_path
 
     resp = client.post(
         "/api/literature/config",
         json={
             "email": "research@example.com",
-            "unpaywall_email": "",
-            "s2_api_key": "s2-secret-demo",
-            "s2_api_key_env": "S2_API_KEY",
+            "unpaywall_email": "oa@example.com",
             "daily_arxiv_language": "English",
         },
     )
     assert resp.status_code == 200, resp.text
     payload = resp.json()
-    assert payload["s2_key_status"] == "config"
     assert payload["daily_arxiv_language"] == "English"
-    assert "s2-secret-demo" not in json.dumps(payload)
+    assert payload["email"] == "research@example.com"
     current = client.get("/api/literature/config").json()
     assert current["email"] == "research@example.com"
-    assert "s2-secret-demo" not in json.dumps(current)
+    assert current["unpaywall_email"] == "oa@example.com"
     text = global_config_path().read_text(encoding="utf-8")
-    assert "s2-secret-demo" in text  # 只落本机 0600 配置
-    assert "English" in text or "daily_arxiv_language" in text
-
-    cleared = client.post(
-        "/api/literature/config",
-        json={"email": "research@example.com", "clear_s2_api_key": True},
-    )
-    assert cleared.status_code == 200
-    assert cleared.json()["s2_key_status"] == "missing"
+    assert "research@example.com" in text
+    assert "daily_arxiv_language" in text or "English" in text
 
 
 def test_literature_config_validation(client: TestClient) -> None:

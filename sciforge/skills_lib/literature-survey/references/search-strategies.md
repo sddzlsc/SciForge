@@ -32,7 +32,7 @@
 ## 4. 引文滚雪球
 
 - 向后：读种子论文的 Related Work 与 References，找被反复引用的奠基工作。
-- 向前：用 Semantic Scholar 的 citations 接口找引用种子论文的后续工作（`lit_search` 支持标题检索后取引用）。
+- 向前：用 OpenAlex/Crossref 的 cited-by 数据或 web 检索找引用种子论文的后续工作（当前 CLI 未直接暴露引用图，可用 `paper_ask` 或外部工具补充）。
 - 收敛信号：新增论文不再带来新概念/新 baseline 时停止。
 
 ## 5. survey.md 推荐骨架

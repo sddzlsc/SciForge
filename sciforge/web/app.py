@@ -22,6 +22,7 @@ import json
 import os
 import queue
 import re
+import shutil
 import threading
 import time
 import uuid
@@ -141,13 +142,10 @@ class LlmTestRequest(BaseModel):
 
 
 class LiteratureForm(BaseModel):
-    """GUI「文献检索设置」表单：可选 S2 Key / 邮箱 / 每日 arXiv 语言。"""
+    """GUI「文献检索与全文设置」表单：OA 邮箱 / 每日 arXiv 语言。"""
 
     email: str | None = None
     unpaywall_email: str | None = None
-    s2_api_key: str | None = None
-    clear_s2_api_key: bool = False
-    s2_api_key_env: str | None = None
     daily_arxiv_language: str = "Chinese"
 
 
@@ -1452,32 +1450,47 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "usage": _jsonable(getattr(response, "usage", None), max_str=2000),
         }
 
-    # ---------------------------- 文献检索设置（GUI） ----------------------------
+    # ---------------------------- 文献检索与全文设置（GUI） ----------------------------
     @app.get("/api/literature/config")
     def api_literature_config() -> dict[str, Any]:
         lit = settings.literature
-        has_config_key = bool(getattr(lit, "s2_api_key", None))
-        env_name = str(getattr(lit, "s2_api_key_env", "S2_API_KEY") or "S2_API_KEY")
-        has_env_key = bool(os.environ.get(env_name))
+        instsci = shutil.which("instsci")
+        email = getattr(lit, "email", None) or ""
+        unpaywall = getattr(lit, "unpaywall_email", None) or ""
         return {
             "ok": True,
             "available": True,
-            "email": getattr(lit, "email", None) or "",
-            "unpaywall_email": getattr(lit, "unpaywall_email", None) or "",
-            "s2_api_key_env": env_name,
-            "s2_key_status": "env" if has_env_key else ("config" if has_config_key else "missing"),
+            "email": email,
+            "unpaywall_email": unpaywall,
             "daily_arxiv_language": getattr(lit, "daily_arxiv_language", "Chinese"),
             "arxiv_categories": list(getattr(lit, "arxiv_categories", []) or []),
-            "config_path": str(global_config_path()),
-            "sources": [
-                {"id": "arxiv", "name": "arXiv", "need_key": False, "note": "预印本全文，最稳定"},
-                {"id": "daily", "name": "daily-arXiv-ai-enhanced", "need_key": False, "note": "每日 AI 中文摘要"},
-                {"id": "openalex", "name": "OpenAlex", "need_key": False, "note": "跨库元数据 + OA 链接"},
-                {"id": "crossref", "name": "Crossref", "need_key": False, "note": "DOI / BibTeX 权威元数据"},
-                {"id": "hf_papers", "name": "HF Papers", "need_key": False, "note": "HF 每日/趋势论文"},
-                {"id": "semantic_scholar", "name": "Semantic Scholar", "need_key": True, "note": "引用图/摘要；匿名 429，建议配 Key"},
+            "search_sources": [
+                {"id": "arxiv", "name": "arXiv", "note": "预印本元数据 + 全文 PDF，最稳定"},
+                {"id": "daily", "name": "daily-arXiv-ai-enhanced", "note": "每日 AI 中文增强摘要"},
+                {"id": "openalex", "name": "OpenAlex", "note": "跨库元数据 + 开放获取链接"},
+                {"id": "crossref", "name": "Crossref", "note": "DOI / BibTeX 权威元数据"},
+                {"id": "hf_papers", "name": "HF Papers", "note": "HuggingFace 每日/趋势论文"},
             ],
-            "note": "S2 Key 写入本机 ~/.sciforge/config.toml（0600），env 变量优先；不会回传浏览器。",
+            "fulltext_sources": [
+                {"id": "arxiv_pdf", "name": "arXiv PDF", "available": True, "note": "arXiv 论文直接下载"},
+                {
+                    "id": "unpaywall",
+                    "name": "Unpaywall OA",
+                    "available": bool(unpaywall or email),
+                    "note": "需配置邮箱；自动查找合法开放获取版本",
+                },
+                {"id": "openalex_oa", "name": "OpenAlex OA", "available": True, "note": "开放获取链接"},
+                {
+                    "id": "instsci",
+                    "name": "instsci 机构访问",
+                    "available": bool(instsci),
+                    "note": "复用学校/图书馆 WebVPN/CARSI 会话，需自行安装 instsci",
+                },
+            ],
+            "instsci_available": bool(instsci),
+            "config_path": str(global_config_path()),
+            "policy": "不集成 Sci-Hub 等未授权镜像（版权与法律风险）。付费墙论文请走 OA / 预印本 / 机构授权，或手动下载合法获得的 PDF 后用 paper_read 精读。",
+            "note": "邮箱用于 Unpaywall 开放获取查询；配置写入本机 ~/.sciforge/config.toml（0600）。",
         }
 
     @app.post("/api/literature/config")
@@ -1491,22 +1504,13 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
         lit = settings.literature
         lit.email = email or None
         lit.unpaywall_email = (form.unpaywall_email or "").strip() or None
-        lit.s2_api_key_env = (form.s2_api_key_env or "").strip() or "S2_API_KEY"
         lit.daily_arxiv_language = language
-        if form.clear_s2_api_key:
-            lit.s2_api_key = None
-        elif form.s2_api_key is not None and form.s2_api_key.strip():
-            lit.s2_api_key = form.s2_api_key.strip()
         save_global_config(settings)
         return {
             "ok": True,
             "available": True,
             "email": lit.email or "",
             "unpaywall_email": lit.unpaywall_email or "",
-            "s2_api_key_env": lit.s2_api_key_env,
-            "s2_key_status": "env" if os.environ.get(lit.s2_api_key_env or "S2_API_KEY") else (
-                "config" if lit.s2_api_key else "missing"
-            ),
             "daily_arxiv_language": lit.daily_arxiv_language,
             "path": str(global_config_path()),
             "note": "已保存到本机 ~/.sciforge/config.toml（0600）",

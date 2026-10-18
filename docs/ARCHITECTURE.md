@@ -182,8 +182,8 @@ provider = "deepseek"
 model = "deepseek-reasoner"
 
 [literature]
-email = ""
-s2_api_key_env = "S2_API_KEY"
+email = ""            # Unpaywall / 礼貌池
+# Semantic Scholar 已按需求停用（适配器保留，不默认暴露）
 [figures]
 style = "neurips"
 palette = "okabe-ito"

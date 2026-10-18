@@ -1442,7 +1442,7 @@ def _record_brief(record: PaperRecord, index: int) -> str:
 class LitSearchTool(BaseTool):
     name = "lit_search"
     description = (
-        "检索学术文献并写入本地文献库。支持多来源：arxiv（默认，最稳）、semantic_scholar、"
+        "检索学术文献并写入本地文献库。支持多来源：arxiv（默认，最稳）、"
         "openalex、hf_papers、daily（daily-arXiv AI 增强中文摘要）、crossref。"
         "何时用：做文献调研/相关工作/找最新进展、确定创新点前需要收集论文时。"
         "多来源失败会自动降级；返回标题、作者、摘要、链接，可用 paper_read 精读。"
@@ -1463,7 +1463,6 @@ class LitSearchTool(BaseTool):
                     "type": "string",
                     "enum": [
                         "arxiv",
-                        "semantic_scholar",
                         "openalex",
                         "hf_papers",
                         "daily",
@@ -1698,7 +1697,9 @@ class PaperFetchTool(BaseTool):
     description = (
         "把论文 PDF 下载到本地文献库并返回本地路径。支持 arXiv ID、DOI、arXiv/DOI URL。"
         "下载顺序：arXiv 直链 → Unpaywall（需配置 [literature] email）→ OpenAlex OA，"
-        "可选调用 instsci（若已安装）。何时用：精读前需要全文 PDF、或 paper_read 提示本地无 PDF 时。"
+        "可选调用 instsci（若已安装，复用你的机构访问）。"
+        "仅使用合法开放获取/机构授权来源，不访问 Sci-Hub 等未授权镜像。"
+        "何时用：精读前需要全文 PDF、或 paper_read 提示本地无 PDF 时。"
         "失败会给出可操作建议（手动下载/配置 email/改用 arXiv 版本）。"
     )
     tags = ("literature", "paper")
@@ -1932,11 +1933,7 @@ class PaperCiteTool(BaseTool):
                     return record
             except LiteratureError as exc:
                 ctx.log(f"OpenAlex 元数据获取失败：{exc}", level="warn")
-        try:  # 最后兜底：Semantic Scholar 单篇元数据（无 key 时 429 会自动降级）
-            return semantic_scholar_get(identifier, client=client, settings=ctx.settings)
-        except LiteratureError as exc:
-            ctx.log(f"Semantic Scholar 元数据获取失败：{exc}", level="warn")
-            return None
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -1985,7 +1982,7 @@ def add_cli(app: typer.Typer) -> None:
     """挂载 ``sciforge lit search|daily|fetch|cite|list`` 子命令。"""
     lit_app = typer.Typer(
         name="lit",
-        help="文献检索：arXiv / Semantic Scholar / OpenAlex / HF Papers / daily arXiv / Crossref",
+        help="文献检索：arXiv / OpenAlex / HF Papers / daily arXiv / Crossref",
         no_args_is_help=True,
     )
     app.add_typer(lit_app, name="lit")

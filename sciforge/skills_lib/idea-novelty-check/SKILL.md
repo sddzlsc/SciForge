@@ -25,7 +25,7 @@ metadata:
 ## 工作流
 
 1. **提炼检索要素**：从 idea 抽 3-5 个不可替代的关键词（机制名、任务、约束、指标），列出同义词与反向表述。
-2. **多轮检索**：`lit_search` 组合检索（近 6/12/24 个月）；覆盖 arXiv、Semantic Scholar、OpenReview、ACL Anthology、CVF OpenAccess；查 conference 最新 accepted papers。
+2. **多轮检索**：`lit_search` 组合检索（近 6/12/24 个月）；覆盖 arXiv、OpenAlex、Crossref、HF Papers；会议最新 accepted papers 用 web 检索或官方 proceedings 人工核对。
 3. **逐篇对比**：对 Top 5 相似工作建对比表——问题、机制、数据、指标、约束；标出「相同 / 相似 / 不同」。
 4. **判断撞车等级**：P0 同机制同设定（撞车）、P1 同机制不同设定（需差异化）、P2 不同机制同目标（可共存）、P3 无关。
 5. **写差异化定位**：一句话「相比 X，我们在 Y 上不同，因此能 Z」；准备 2-3 个可验证差异点。
@@ -67,7 +67,8 @@ metadata:
 
 ```bash
 sciforge lit search "memory compression long video diffusion" --since 2025 --source arxiv --limit 25
-sciforge lit search "hierarchical memory video generation" --source semantic_scholar --limit 25
+sciforge lit search "hierarchical memory video generation" --source arxiv --limit 25
+sciforge lit search "hierarchical memory video generation" --source openalex --limit 25
 # 对 Top-5 相似工作逐篇 paper_compare，填对比表
 ```
 

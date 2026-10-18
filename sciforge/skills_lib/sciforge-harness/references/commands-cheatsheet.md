@@ -14,7 +14,7 @@ sciforge serve --port 8765             # 本地 Web 控制台
 
 ```bash
 sciforge lit search "diffusion transformer" --source arxiv --limit 30
-sciforge lit search "..." --source semantic_scholar|openalex|hf_papers|crossref
+sciforge lit search "..." --source openalex|hf_papers|crossref|daily
 sciforge lit daily --category cs.CV --limit 30
 sciforge lit cite 2401.00001 -o references.bib
 sciforge read 2401.00001 --note        # 下载 + 精读笔记
@@ -22,6 +22,7 @@ sciforge read 2401.00001 --ask "..."   # 就论文自由问答
 ```
 
 对应工具箱工具：`lit_search`、`lit_daily`、`paper_fetch`、`paper_read`、`paper_note`、`paper_ask`、`paper_compare`、`paper_cite`。
+全文只走合法来源：arXiv / Unpaywall OA / OpenAlex OA / instsci 机构访问；不访问 Sci-Hub 等未授权镜像。
 
 ## 3. 创新点
 

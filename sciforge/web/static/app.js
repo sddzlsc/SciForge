@@ -972,28 +972,34 @@
       state.lit.configLoaded = true;
       $('#lit-email').value = data.email || '';
       $('#lit-unpaywall-email').value = data.unpaywall_email || '';
-      $('#lit-s2-env').value = data.s2_api_key_env || 'S2_API_KEY';
       $('#lit-daily-language').value = data.daily_arxiv_language || 'Chinese';
-      $('#lit-s2-key').value = '';
-      $('#lit-clear-s2').checked = false;
+
       const badge = $('#lit-config-badge');
-      if (data.s2_key_status === 'env') {
-        badge.textContent = 'S2 Key 来自环境变量';
-        badge.className = 'badge badge-ok';
-      } else if (data.s2_key_status === 'config') {
-        badge.textContent = 'S2 Key 已保存';
+      if (data.email || data.unpaywall_email) {
+        badge.textContent = 'OA 邮箱已配置';
         badge.className = 'badge badge-ok';
       } else {
-        badge.textContent = 'S2 Key 未配置（可选）';
+        badge.textContent = 'OA 邮箱未配置（可选）';
         badge.className = 'badge badge-ghost';
       }
-      const sources = data.sources || [];
-      $('#lit-sources').innerHTML = sources.map((source) =>
-        '<span class="tag-chip" title="' + escapeHtml(source.note || '') + '">' + escapeHtml(source.name) +
-        (source.need_key ? ' · 建议 Key' : ' · 无需 Key') + '</span>'
+
+      const searchSources = data.search_sources || [];
+      $('#lit-sources').innerHTML = searchSources.map((source) =>
+        '<span class="tag-chip" title="' + escapeHtml(source.note || '') + '">' +
+        escapeHtml(source.name) + ' · 检索</span>'
       ).join('');
+
+      const fulltextSources = data.fulltext_sources || [];
+      $('#lit-fulltext').innerHTML = fulltextSources.map((source) =>
+        '<span class="tag-chip" title="' + escapeHtml(source.note || '') + '">' +
+        escapeHtml(source.name) + (source.available ? ' · 可用' : ' · 未配置') + '</span>'
+      ).join('');
+
+      if (data.policy) {
+        $('#lit-config-notice').innerHTML = noticeHtml(data.policy, 'warn');
+      }
       if (data.note) {
-        $('#lit-config-notice').innerHTML = noticeHtml(data.note + ' 配置路径：' + data.config_path, 'info');
+        $('#lit-config-notice').innerHTML += noticeHtml(data.note + ' 配置路径：' + data.config_path, 'info');
       }
     } catch (err) {
       $('#lit-config-notice').innerHTML = noticeHtml('读取检索设置失败：' + err.message, 'err');
@@ -1005,16 +1011,10 @@
     const body = {
       email: $('#lit-email').value.trim(),
       unpaywall_email: $('#lit-unpaywall-email').value.trim(),
-      s2_api_key_env: $('#lit-s2-env').value.trim(),
       daily_arxiv_language: $('#lit-daily-language').value,
-      clear_s2_api_key: $('#lit-clear-s2').checked,
     };
-    const s2Key = $('#lit-s2-key').value.trim();
-    if (s2Key) body.s2_api_key = s2Key;
     try {
       const data = await apiPost('/api/literature/config', body);
-      $('#lit-s2-key').value = '';
-      $('#lit-clear-s2').checked = false;
       toast(data.note || '检索设置已保存', 'ok', 5000);
       await loadLitConfig();
     } catch (err) {

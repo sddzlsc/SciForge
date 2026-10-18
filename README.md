@@ -90,7 +90,7 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 |---|---|---|
 | 大模型 Provider | 模型 | 名称 / Base URL / 模型 / API Key（或环境变量名）/ 角色路由；支持「保存并测试」 |
 | GPU 服务器 | 服务器 | host / 端口 / 用户 / 私钥路径 / workdir / conda / Slurm；支持「保存并测试 SSH」 |
-| 文献检索 | 文献 | 邮箱、Semantic Scholar Key、每日 arXiv 语言；渠道与 Key 需求一目了然 |
+| 文献检索 | 文献 | 邮箱（Unpaywall OA）、每日 arXiv 语言；检索/全文渠道可用状态一目了然 |
 
 | 页面 | 能力 |
 |---|---|
@@ -125,7 +125,7 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 
 | 模块 | 能力 | 入口 |
 |---|---|---|
-| 📚 文献 | arXiv / Semantic Scholar / OpenAlex / HF Papers / Crossref / 每日 arXiv 中文摘要；BibTeX；OA 下载（渠道与配置见 [docs/LITERATURE.md](docs/LITERATURE.md)） | `sciforge lit ...`、`lit_search`、`lit_daily` |
+| 📚 文献 | arXiv / OpenAlex / HF Papers / Crossref / 每日 arXiv 中文摘要；BibTeX；合法全文获取（arXiv/Unpaywall/OA/机构访问，不集成 Sci-Hub；见 [docs/LITERATURE.md](docs/LITERATURE.md)） | `sciforge lit ...`、`lit_search`、`lit_daily` |
 | 📖 精读 | PDF → 章节结构 → 结构化笔记 / 对比矩阵 / 论文问答 | `sciforge read ...`、`paper_read`、`paper_note` |
 | 💡 创新点 | 从文献空白生成 Idea Card（空白/洞察/方法/MVP/风险/评分）与 Proposal | `sciforge idea generate`、`idea_generate` |
 | 🧪 实验 | 实验设计 → 代码脚手架（CV/NLP/LLM-SFT）→ 远程启动 → 状态/日志 → 指标回收 | `sciforge exp ...`、`exp_scaffold`、`exp_launch` |
@@ -406,6 +406,7 @@ bash scripts/verify.sh      # 一键验证：导入 / pytest / demo / 工具 / L
 - 🚧 机构访问浏览器会话的完整自动化（当前优先 OA + instsci 集成）
 
 已知限制：LLM 质量决定产出质量；`--mock` 仅用于流程演示；远程功能需要用户自备 SSH 服务器；
+文献全文只走合法来源（不集成 Sci-Hub 等未授权镜像）；
 LaTeX 编译需要本机 TeX Live；架构图原生 SVG，PDF/PNG 依赖 `cairosvg`/`rsvg-convert`/`inkscape`，macOS 可用系统 `sips`/`qlmanage` 兜底（本机已验证可导出 PDF/PNG）。
 
 ## 致谢

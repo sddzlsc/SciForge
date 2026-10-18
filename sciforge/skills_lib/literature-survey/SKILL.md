@@ -25,7 +25,7 @@ metadata:
 ## 工作流
 
 1. **拆检索式**：把主题拆成 3-5 组 `(任务词, 方法词, 数据集/场景, 同义词)`；中英文各准备一版。检索式写进 `survey.md` 附录，保证可追溯。
-2. **多源检索**：`lit_search` 同时打 arXiv、Semantic Scholar、OpenAlex；每条检索式 `limit 20-30`；最近 6 个月再补一次 `lit_daily`。记录每条查询与命中数。
+2. **多源检索**：`lit_search` 同时打 arXiv、OpenAlex、Crossref、HF Papers；每条检索式 `limit 20-30`；最近 6 个月再补一次 `lit_daily`。记录每条查询与命中数。
 3. **去重与筛选**：按 arXiv ID / DOI / 归一化标题去重；按「相关度 → 时间 → 引用数」筛出 20-40 篇，`paper_fetch` 拉 PDF 入库。
 4. **速读填表**：每篇用 `paper_read` 取 abstract/intro 末段/结论，填五列表：*问题 / 方法一句话 / 数据与设定 / 关键结论数字 / 局限*。
 5. **聚类成线**：把文献聚成 4-6 条技术路线，每条写「起点 → 关键改进 → 当前 SOTA → 未解决问题」，而不是按时间流水账。
@@ -45,7 +45,7 @@ metadata:
 
 | 情况 | 处理 |
 |---|---|
-| Semantic Scholar 429 / 限流 | 降级到 arXiv + OpenAlex；稍后重试，别阻塞流程 |
+| 某渠道限流/超时 | 降级到 arXiv + OpenAlex；稍后重试，别阻塞流程 |
 | 网络不可用 | 只查本地 PaperLibrary（`library.list/search`），并在报告标注数据截止时间 |
 | 检索结果太泛（上千篇） | 加 venue 限制、限定近 2 年、加数据集/方法同义词收窄 |
 | 相关文献太少（<8 篇） | 放宽 since；用引文滚雪球（种子论文的 references / citations）；换相邻领域术语 |
@@ -68,7 +68,7 @@ metadata:
 ```bash
 # 1) 三条检索式并行
 sciforge lit search "video diffusion transformer long-context" --source arxiv --since 2023 --limit 30
-sciforge lit search "long video generation temporal consistency" --source semantic_scholar --limit 20
+sciforge lit search "long video generation temporal consistency" --source arxiv --limit 20
 sciforge lit search "video diffusion benchmark evaluation" --source openalex --limit 20
 # 2) 入库 + 生成 bib
 sciforge read 2401.00001 --note

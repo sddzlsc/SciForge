@@ -229,23 +229,23 @@
             </div>
             <details class="panel" id="lit-config-panel" open>
               <summary>
-                <span>检索设置（邮箱 / S2 Key / 每日 arXiv 语言）</span>
+                <span>检索设置（邮箱 / 每日 arXiv 语言 / 全文渠道）</span>
                 <span id="lit-config-badge" class="badge badge-ghost">—</span>
               </summary>
               <form id="lit-config-form" class="config-form" autocomplete="off">
                 <label class="field grow"><span>联系邮箱（Unpaywall / OA 礼貌池）</span><input id="lit-email" type="email" placeholder="you@example.com"></label>
                 <label class="field grow"><span>Unpaywall 邮箱（可留空则用上面的邮箱）</span><input id="lit-unpaywall-email" type="email" placeholder="you@example.com"></label>
-                <label class="field"><span>Semantic Scholar Key（可选）</span><input id="lit-s2-key" type="password" placeholder="留空保持不变；填写即保存"></label>
-                <label class="field"><span>S2 Key 环境变量名</span><input id="lit-s2-env" placeholder="S2_API_KEY" spellcheck="false"></label>
                 <label class="field"><span>每日 arXiv 语言</span><select id="lit-daily-language"><option value="Chinese">中文</option><option value="English">English</option></select></label>
-                <label class="switch field-switch"><input type="checkbox" id="lit-clear-s2"><span class="switch-track"></span><span class="switch-text">清除已存 S2 Key</span></label>
                 <div class="form-actions">
                   <button class="btn btn-primary" type="submit">保存检索设置</button>
                   <button class="btn btn-ghost" type="button" id="lit-config-refresh">重新读取</button>
                 </div>
               </form>
               <div id="lit-config-notice"></div>
+              <div class="muted" style="margin-top:14px;font-size:11.5px">检索渠道</div>
               <div id="lit-sources" class="tag-list"></div>
+              <div class="muted" style="margin-top:12px;font-size:11.5px">全文获取（合法来源）</div>
+              <div id="lit-fulltext" class="tag-list"></div>
             </details>
             <div id="lit-notice" class="notice hidden"></div>
             <div id="lit-results" class="card-grid">

@@ -27,7 +27,7 @@
 
 ## 4. 引用核验流程（防幻觉）
 
-1. 只从 `lit_search`/`paper_cite`/Semantic Scholar/OpenAlex 等接口取元数据。
+1. 只从 `lit_search`/`paper_cite`/OpenAlex/Crossref 等接口取元数据。
 2. 每条引用核对：标题、作者、年份、venue、DOI/arXiv ID。
 3. 用 `paper_cite` 生成 BibTeX，不手写条目。
 4. 不确定的引用标 `[CITATION NEEDED]`，投稿前必须清零。

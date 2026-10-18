@@ -1134,27 +1134,18 @@ def test_semantic_scholar_get_single_paper() -> None:
     assert record.authors == ["Zoe Xu"]
 
 
-def test_paper_cite_semantic_scholar_fallback(tmp_path: Path) -> None:
-    payload = {
-        "paperId": "s2paper",
-        "title": "S2 Only Paper",
-        "venue": "ICLR 2024",
-        "publicationDate": "2024-02-02",
-        "authors": [{"name": "Zoe Xu"}],
-    }
+def test_paper_cite_unknown_identifier_fails_cleanly(tmp_path: Path) -> None:
+    """已停用 Semantic Scholar 兜底：未知标识应返回可操作失败提示，而不是静默/编造。"""
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert "semanticscholar.org" in str(request.url)
-        return json_response(payload)
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover - 不应发起请求
+        raise AssertionError("未知标识不应再请求 Semantic Scholar")
 
     with mock_http(handler) as client:
         ctx = make_ctx(tmp_path, client=client)
-        result = literature.PaperCiteTool().run(ctx, papers=["s2paper"])
-    assert result.ok
-    assert result.data["entries"][0]["id"] == "s2paper"
-    assert "S2 Only Paper" in result.content
-    refs = (ctx.project_dir / "references.bib").read_text(encoding="utf-8")
-    assert "@inproceedings{" in refs
+        result = literature.PaperCiteTool().run(ctx, papers=["not-a-real-id"])
+    assert not result.ok
+    assert "未能获取" in (result.error or result.content)
+    assert "lit_search" in (result.error or result.content)
 
 
 # ---------------------------------------------------------------------------

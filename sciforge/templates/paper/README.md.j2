@@ -1,0 +1,59 @@
+# {{ title }}
+
+> {{ venue_label }} 论文工程，由 **SciForge** 生成（`sciforge write init`）。
+
+## 目录结构
+
+```
+{{ dest_name }}/
+├── main.tex                 # 主文件（preamble + abstract + \input 各章节）
+├── sections/
+{% for section in sections %}│   ├── {{ section.file }}.tex        # {{ section.title }}
+{% endfor %}├── figures/                 # 论文图（SVG/PDF/PNG）
+├── tables/                  # booktabs 三线表 .tex
+├── refs.bib                 # 参考文献
+└── README.md                # 本文件
+```
+
+## 编译
+
+```bash
+# 推荐：latexmk 自动处理交叉引用与 BibTeX
+latexmk -xelatex -interaction=nonstopmode main.tex
+
+# 或手动
+xelatex main && bibtex main && xelatex main && xelatex main
+```
+
+没有 LaTeX？安装 TinyTeX（轻量，约 100MB）或 MacTeX：
+
+```bash
+# macOS / Linux：TinyTeX
+curl -sL "https://yihui.org/tinytex/install-bin-unix.sh" | sh
+# macOS：完整发行版
+brew install --cask mactex-no-gui
+```
+
+**{{ venue_label }} 官方 sty**：{{ venue_note }}
+
+## 写作工作流（可与 SciForge agent 配合）
+
+```bash
+sciforge write section --name 04_experiments --content-file draft_exp.tex
+sciforge write cite --arxiv 2401.00001,2401.00002      # 自动生成 BibTeX
+sciforge write compile                                 # 检测 latexmk/xelatex 并编译
+sciforge write review                                  # 审稿式自检（规则 + 可选 LLM）
+sciforge fig arch --spec figures/fig1.yaml -o figures/fig1.pdf
+sciforge fig plot --spec figures/curve.yaml -o figures/curve.pdf
+sciforge fig table --spec tables/main.yaml -o tables/table_main.tex
+```
+
+## 提交前检查清单
+
+- [ ] 所有 `TODO` 已替换（`grep -rn "TODO" .`）
+- [ ] 摘要 120–250 词，不含引用
+- [ ] 每张图/表在正文中被 `\ref` 引用，caption 自包含
+- [ ] 所有 `\cite` 在 refs.bib 中存在，所有数字可追溯到 `results/`
+- [ ] 实验记录 seed / GPU / 训练时长（可复现性声明）
+- [ ] 匿名化（投稿版）：作者、致谢、项目链接
+- [ ] 页数限制与 LaTeX 错误为 0

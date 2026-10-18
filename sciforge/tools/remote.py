@@ -489,6 +489,7 @@ class SSHExecutor:
         info["server"] = self.server.name
         info["host"] = self.server.host
         info["reachable"] = result.rc == 0
+        info["ok"] = info["reachable"]  # doctor 等调用方统一读 ok 字段
         if result.rc != 0:
             info["error"] = (result.stderr or result.stdout or "ssh 连接失败").strip()[:800]
         if info["reachable"] and bool(self.server.auto_mkdir):
@@ -1043,6 +1044,36 @@ def local_gpu_info(*, runner: Any | None = None) -> dict[str, Any]:
 # 本地执行器（无服务器时的 exp_launch 降级）
 # ---------------------------------------------------------------------------
 
+# 同一进程内启动的本地子进程（避免僵尸进程让 job_state 误判「仍在运行」）
+_LOCAL_CHILDREN: dict[int, subprocess.Popen] = {}
+
+
+def _process_exists(pid: int) -> bool:
+    """判断 PID 是否仍是活进程（排除僵尸态；跨平台用 ps 兜底）。"""
+    proc = _LOCAL_CHILDREN.get(pid)
+    if proc is not None and proc.poll() is not None:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:  # pragma: no cover - 有权限外进程
+        return True
+    try:
+        result = subprocess.run(  # noqa: S603 - 固定 ps 参数
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):  # pragma: no cover
+        return True
+    state = (result.stdout or "").strip()
+    if not state:
+        return False
+    return not state.upper().startswith("Z")
+
+
 
 class LocalExecutor:
     """本地执行器；与 :class:`SSHExecutor` 保持相近接口，便于实验模块复用。"""
@@ -1092,6 +1123,7 @@ class LocalExecutor:
             "server": "local",
             "host": platform.node(),
             "reachable": result.rc == 0,
+            "ok": result.rc == 0,
             "workdir": self.workdir,
             "os": platform.platform(),
             "python": platform.python_version(),
@@ -1131,6 +1163,7 @@ class LocalExecutor:
             )
         finally:
             handle.close()
+        _LOCAL_CHILDREN[proc.pid] = proc
         pid_file = log_file.parent / f"{name}.pid"
         pid_file.write_text(str(proc.pid), encoding="utf-8")
         return {
@@ -1159,22 +1192,26 @@ class LocalExecutor:
         raw = str(job_id or "").strip()
         if not raw.isdigit():
             return {"job_id": raw, "alive": None, "state": "unknown"}
-        try:
-            os.kill(int(raw), 0)
-            return {"job_id": raw, "alive": True, "state": "running"}
-        except ProcessLookupError:
-            return {"job_id": raw, "alive": False, "state": "stopped"}
-        except PermissionError:  # pragma: no cover - 进程存在但无权限
-            return {"job_id": raw, "alive": True, "state": "running"}
+        alive = _process_exists(int(raw))
+        return {"job_id": raw, "alive": alive, "state": "running" if alive else "stopped"}
 
     def kill_job(self, job_id: str, *, kind: str = "auto", timeout: float = 30) -> RemoteResult:
         raw = str(job_id or "").strip()
         if not raw.isdigit():
             return RemoteResult(rc=1, stderr=f"无法停止本地 job：{raw}")
+        pid = int(raw)
+        proc = _LOCAL_CHILDREN.get(pid)
         try:
-            os.kill(int(raw), 15)
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+            else:
+                os.kill(pid, 15)
             return RemoteResult(rc=0, stdout=f"已发送 SIGTERM 到 {raw}")
-        except OSError as exc:
+        except (OSError, ProcessLookupError) as exc:
             return RemoteResult(rc=1, stderr=str(exc))
 
     def upload_paths(self, local_paths: Sequence[str | Path], remote_dir: str) -> RemoteResult:
@@ -1459,7 +1496,8 @@ class GpuStatusTool(BaseTool):
 
     def run(self, ctx: ToolContext, **kwargs: Any) -> ToolResult:
         servers = list(getattr(ctx.settings, "servers", []) or [])
-        use_local = bool(kwargs.get("local")) or not servers
+        # 显式指定 server 但没配置时，报错而不是悄悄查本机
+        use_local = bool(kwargs.get("local")) or (not servers and not kwargs.get("server"))
         if use_local:
             return self._local_status()
         targets = servers if kwargs.get("all") else [ctx.get_server(kwargs.get("server"))]
@@ -1853,7 +1891,7 @@ def _add_typer_once(app: Any, name: str, builder: Any) -> None:
     if attached is None:
         attached = set()
         try:
-            setattr(app, "_sciforge_t2_attached", attached)
+            app._sciforge_t2_attached = attached  # noqa: B010 - Typer 对象可动态挂属性
         except (AttributeError, TypeError):  # pragma: no cover - 非 Typer 对象
             pass
     if name in attached:
@@ -1865,7 +1903,7 @@ def _add_typer_once(app: Any, name: str, builder: Any) -> None:
 def build_ssh_app() -> Any:
     import typer
 
-    app = typer.Typer(help="SSH 服务器管理：add / list / test / exec", no_args_is_help=True)
+    app = typer.Typer(help="SSH 服务器管理：add / list / test / sync / exec", no_args_is_help=True)
 
     @app.command("add")
     def ssh_add(
@@ -1956,6 +1994,52 @@ def build_ssh_app() -> Any:
                 value = ", ".join(str(v) for v in value) or "-"
             table.add_row(key, str(value or "-"))
         _console().print(table)
+
+    @app.command("sync")
+    def ssh_sync(
+        server: str = typer.Argument(..., help="服务器名"),
+        local: str = typer.Argument(..., help="本地路径（upload）或本地目录（download）"),
+        remote: str = typer.Argument(..., help="远端目录（upload）或远端路径（download）"),
+        direction: str = typer.Option("upload", "--direction", help="upload | download"),
+        exclude: str = typer.Option(None, "--exclude", help="排除模式，可重复；如 data --exclude .git"),
+        delete: bool = typer.Option(False, "--delete", help="rsync --delete（谨慎）"),
+        json_mode: bool = typer.Option(False, "--json"),
+    ) -> None:
+        """本地 ↔ 服务器同步（rsync 优先，scp 兜底；自动套用 server.sync_excludes）。"""
+        ctx = _make_ctx()
+        server_obj = ctx.get_server(server)
+        if server_obj is None:
+            _fail(f"未找到服务器 {server}（先 `sciforge ssh add`）", json_mode=json_mode)
+        executor = SSHExecutor(server_obj)
+        excludes = [exclude] if exclude else []
+        try:
+            if direction.lower() == "download":
+                result = executor.download_paths(
+                    [remote], Path(local).expanduser(), delete=delete, excludes=excludes
+                )
+            else:
+                local_path = Path(local).expanduser()
+                if not local_path.exists():
+                    _fail(f"本地路径不存在：{local_path}", json_mode=json_mode)
+                source = str(local_path) + ("/" if local_path.is_dir() and local.endswith("/") else "")
+                if local_path.is_dir() and not local.endswith("/"):
+                    source += "/"
+                result = executor.upload_paths([source], remote, delete=delete, excludes=excludes)
+        except PermissionError as exc:
+            _fail(str(exc), json_mode=json_mode)
+            raise
+        payload = {"ok": result.ok, "server": server, "direction": direction, **result.to_dict()}
+        if json_mode:
+            _json_out(payload)
+            if not result.ok:
+                raise typer.Exit(1)
+            return
+        if result.ok:
+            _console().print(f"[green]✓ 同步完成（{direction}）：{local} ↔ {server}:{remote}[/green]")
+            if (result.stdout or "").strip():
+                _console().print((result.stdout or "").strip()[-2000:])
+        else:
+            _fail(f"同步失败（rc={result.rc}）：{(result.stderr or result.stdout).strip()[:800]}")
 
     @app.command("exec")
     def ssh_exec(

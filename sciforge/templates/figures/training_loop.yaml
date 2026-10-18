@@ -1,0 +1,75 @@
+title: Training Loop
+direction: horizontal
+width: 540
+nodes:
+- id: data
+  label: Data Loader
+  sub: B × ...
+  kind: data
+  row: 0
+  col: 0
+  group: fwd
+- id: model
+  label: Forward Pass
+  kind: module
+  row: 0
+  col: 1
+  group: fwd
+- id: loss
+  label: Loss
+  kind: loss
+  row: 0
+  col: 0
+  group: loss
+- id: bwd
+  label: Backward Pass
+  kind: module
+  row: 0
+  col: 0
+  group: bwd
+- id: opt
+  label: Optimizer Step
+  kind: module
+  row: 0
+  col: 1
+  group: bwd
+- id: note1
+  label: next batch → repeat until convergence
+  kind: note
+  row: 1
+  col: 0
+  span: all
+groups:
+- id: fwd
+  label: Forward
+  row: 0
+  col: 0
+  color: blue
+- id: loss
+  label: Objective
+  row: 0
+  col: 2
+  color: orange
+- id: bwd
+  label: Backward & update
+  row: 0
+  col: 3
+  color: green
+edges:
+- from: data
+  to: model
+- from: model
+  to: loss
+  label: logits
+- from: loss
+  to: bwd
+  label: grad
+- from: bwd
+  to: opt
+- from: opt
+  to: model
+  style: skip dashed
+  offset: 30
+  side: top
+  label: next step
+legend: true

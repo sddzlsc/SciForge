@@ -70,6 +70,20 @@ SciForge 不是从零发明，而是把下列公开生态的能力**重组为一
 | [skills.scansci.com](https://skills.scansci.com/) · Rimagination 科研扩展（instsci / scansci-svg / easyplot / easyslides / easymd / good-question / good-story / easymeta / mineru-go / chuan-check …） | 科研 Agent 扩展生态目录与安装方式 | `sciforge/catalog/skills.json`、`sciforge skills install <name>` |
 | [DeepSeek Harness (DSH)](https://github.com/deepseek-ai) | Skill 目录规范与宿主 Agent | `sciforge dsh install` → `~/.dsh/skills/` |
 
+## 界面预览
+
+本地 Web 控制台（`sciforge serve`，深/浅主题、SSE 流式、工具调用卡片）：
+
+![对话 · 工具调用流式演示](examples/demo/screenshots/console-chat.jpg)
+
+![文献检索 · 每日 arXiv / 文献库](examples/demo/screenshots/console-literature.jpg)
+
+顶会级配图与论文工程（`sciforge fig` / `sciforge write`，均由声明式 spec 可复现）：
+
+![模型架构图 Figure 1](sciforge/templates/figures/outputs/fig1_architecture.png)
+
+![实验曲线与显著性标注](sciforge/templates/figures/outputs/fig2_curves.png)
+
 ## 核心能力
 
 | 模块 | 能力 | 入口 |
@@ -160,7 +174,7 @@ sciforge ssh run gpu1 "nvidia-smi"     # 任意远程命令
 sciforge exp scaffold --template cv-classification --name vit-routing
 sciforge exp launch --server gpu1 --script scripts/run.sh --name vit-routing-a
 sciforge exp status                    # 运行中/完成/失败
-sciforge exp logs vit-routing-a -f     # 跟踪日志
+sciforge exp logs vit-routing-a --tail 80   # 查看日志
 sciforge exp results                   # 回收 metrics → results/ 三线表
 ```
 
@@ -201,7 +215,7 @@ Pipeline 采用「双循环」理念：**内环**快速做实验拿证据，**�
 
 ```bash
 sciforge write draft --venue cvpr --title "..." --authors "A, B"
-sciforge write section method --from notes/method.md
+sciforge write section --name 03_method --content-file notes/method.tex
 sciforge write compile
 sciforge write review                  # 审稿式自检
 ```
@@ -330,6 +344,21 @@ sciforge/
 ```
 
 用户数据：`~/.sciforge/`（配置、文献库、Skill、缓存）；项目数据：`<project>/.sciforge/`（运行、会话、状态）。
+
+## 验收与测试
+
+```bash
+bash scripts/verify.sh      # 一键验证：导入 / pytest / demo / 工具 / LLM Mock / Web
+```
+
+当前工程状态（v0.1.0）：
+
+- **326 passed, 2 skipped**（全离线；集成测试标 `integration` 默认跳过）
+- **45 个工具**注册，`ruff check sciforge tests` 全绿
+- 真实网络验证：arXiv Atom 检索、daily-arXiv-ai-enhanced 数据解析（`SCIFORGE_RUN_INTEGRATION=1 pytest -m integration`）
+- 离线 demo 每个模块可独立验收：`sciforge demo`、`sciforge fig arch --spec ...`、`sciforge write check`
+- 配图产物见 `sciforge/templates/figures/outputs/`（SVG/PNG/PDF + spec）
+- 24 个科研 Skill 已安装进 `~/.dsh/skills`（DSH 新会话可直接调用）
 
 ## Roadmap 与已知限制
 

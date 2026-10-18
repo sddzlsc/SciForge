@@ -62,7 +62,7 @@ sciforge gpu status
 sciforge exp scaffold --template cv-classification --name vit-routing
 sciforge exp launch --server gpu1 --script scripts/run.sh --name vit-routing-a
 sciforge exp status
-sciforge exp logs vit-routing-a -f
+sciforge exp logs vit-routing-a --tail 80
 sciforge exp results
 ```
 

@@ -51,6 +51,7 @@ ARXIV_API = "https://export.arxiv.org/api/query"
 ARXIV_PDF = "https://arxiv.org/pdf/{arxiv_id}"
 ARXIV_ABS = "https://arxiv.org/abs/{arxiv_id}"
 S2_API = "https://api.semanticscholar.org/graph/v1/paper/search"
+S2_PAPER_API = "https://api.semanticscholar.org/graph/v1/paper/{paper_id}"
 S2_FIELDS = (
     "paperId,title,abstract,url,year,venue,publicationDate,authors,externalIds,"
     "openAccessPdf,publicationTypes"
@@ -661,6 +662,49 @@ def semantic_scholar_search(
         raise LiteratureError(f"Semantic Scholar 返回的不是合法 JSON：{exc}") from exc
     records = [_s2_record(item) for item in payload.get("data") or []]
     return [record for record in records if record is not None]
+
+
+def semantic_scholar_get(
+    identifier: str,
+    *,
+    client: httpx.Client | None = None,
+    settings: Any = None,
+) -> PaperRecord | None:
+    """按 S2 paperId / DOI / arXiv ID 取单篇元数据（paper_cite 的 S2 兜底）。"""
+    raw = str(identifier or "").strip()
+    if not raw:
+        return None
+    candidates = [raw]
+    doi = normalize_doi(raw)
+    arxiv_id = normalize_arxiv_id(raw)
+    if doi:
+        candidates.append(f"DOI:{doi}")
+    if arxiv_id:
+        candidates.append(f"ARXIV:{arxiv_id}")
+    headers = _headers(settings)
+    api_key = _s2_api_key(settings)
+    if api_key:
+        headers["x-api-key"] = api_key
+    with open_client(client, settings=settings) as http:
+        for candidate in candidates:
+            url = S2_PAPER_API.format(paper_id=quote(candidate, safe=""))
+            resp = _get(http, url, source="Semantic Scholar", headers=headers)
+            if resp.status_code == 404:
+                continue
+            if resp.status_code == 429:
+                raise LiteratureError(
+                    "Semantic Scholar 限流（HTTP 429），无法补全引用元数据。"
+                    "请稍后重试或设置 S2_API_KEY。"
+                )
+            _require_status(resp, "Semantic Scholar", hints="可改用 arXiv ID/DOI 生成引用。")
+            try:
+                payload = resp.json()
+            except ValueError:
+                continue
+            record = _s2_record(payload) if isinstance(payload, dict) else None
+            if record is not None:
+                return record
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -1880,10 +1924,16 @@ class PaperCiteTool(BaseTool):
         doi = normalize_doi(identifier)
         if doi:
             try:
-                return _openalex_work_by_doi(doi, client=client, settings=ctx.settings)
+                record = _openalex_work_by_doi(doi, client=client, settings=ctx.settings)
+                if record is not None:
+                    return record
             except LiteratureError as exc:
                 ctx.log(f"OpenAlex 元数据获取失败：{exc}", level="warn")
-        return None
+        try:  # 最后兜底：Semantic Scholar 单篇元数据（无 key 时 429 会自动降级）
+            return semantic_scholar_get(identifier, client=client, settings=ctx.settings)
+        except LiteratureError as exc:
+            ctx.log(f"Semantic Scholar 元数据获取失败：{exc}", level="warn")
+            return None
 
 
 # ---------------------------------------------------------------------------
@@ -2078,6 +2128,7 @@ __all__ = [
     "pick_daily_file",
     "record_to_bibtex",
     "resolve_local_pdf",
+    "semantic_scholar_get",
     "semantic_scholar_search",
     "LitDailyTool",
     "LitSearchTool",

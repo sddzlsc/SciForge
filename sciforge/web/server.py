@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from sciforge.config import Settings, get_settings
@@ -55,6 +56,7 @@ def run_server(
     print("  提示     : 默认离线 Mock 可用；配置 DEEPSEEK_API_KEY 后走真实模型")
     print("  停止服务 : Ctrl+C")
     print("=" * 68)
+    sys.stdout.flush()
 
     if config.open_browser and os.environ.get("SCIFORGE_NO_BROWSER", "") not in ("1", "true"):
         _open_browser(url)

@@ -1,0 +1,18 @@
+% =============================================================================
+% 三线表示例（booktabs）。由 `sciforge fig table --spec ... --out tables/table_main.tex` 覆盖。
+% 规范：\toprule / \midrule / \bottomrule；最佳加粗、次佳下划线。
+% =============================================================================
+\begin{table}[t]
+\centering
+\small
+\caption{TODO: self-contained caption (what is measured, on which datasets).}
+\label{tab:main}
+\begin{tabular}{lccc}
+\toprule
+Method & Metric A $\uparrow$ & Metric B $\uparrow$ & Params (M) $\downarrow$ \\
+\midrule
+Baseline & 66.0 & 78.4 & 86.0 \\
+\textbf{Ours} & \textbf{74.1} & \textbf{79.6} & 87.8 \\
+\bottomrule
+\end{tabular}
+\end{table}

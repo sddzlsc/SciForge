@@ -1,0 +1,88 @@
+title: Pre-LN Transformer Block
+direction: vertical
+width: 360
+nodes:
+- id: x
+  label: x
+  sub: (B, N, D)
+  kind: data
+  row: 0
+  col: 0
+- id: ln1
+  label: LayerNorm
+  kind: module
+  row: 0
+  group: attn
+- id: mhsa
+  label: Multi-Head Self-Attention
+  kind: module
+  row: 1
+  group: attn
+- id: add1
+  label: ⊕
+  kind: op
+  row: 2
+  group: attn
+- id: ln2
+  label: LayerNorm
+  kind: module
+  row: 0
+  group: ffn
+- id: ffn
+  label: Feed-Forward Network
+  kind: module
+  row: 1
+  group: ffn
+- id: add2
+  label: ⊕
+  kind: op
+  row: 2
+  group: ffn
+- id: out
+  label: x'
+  sub: (B, N, D)
+  kind: data
+  row: 7
+  col: 0
+- id: note1
+  label: 'N: sequence length   D: hidden dim'
+  kind: note
+  row: 8
+  col: 0
+groups:
+- id: attn
+  label: Attention sublayer
+  row: 1
+  col: 0
+  color: blue
+- id: ffn
+  label: Feed-Forward sublayer
+  row: 4
+  col: 0
+  color: green
+edges:
+- from: x
+  to: ln1
+- from: ln1
+  to: mhsa
+- from: mhsa
+  to: add1
+- from: add1
+  to: ln2
+- from: ln2
+  to: ffn
+- from: ffn
+  to: add2
+- from: add2
+  to: out
+- from: x
+  to: add1
+  style: skip dashed
+  offset: 26
+  label: residual
+- from: add1
+  to: add2
+  style: skip dashed
+  offset: 40
+  label: residual
+legend: true

@@ -1,0 +1,19 @@
+kind: bar
+title: Ablation study
+ylabel: Worst-group accuracy (%)
+categories:
+- Ours
+- w/o router
+- w/o consistency
+- Baseline
+series:
+- label: Top-1
+  values:
+  - 74.1
+  - 69.3
+  - 71.6
+  - 66.0
+ylim:
+- 60
+- 78
+annotate: true

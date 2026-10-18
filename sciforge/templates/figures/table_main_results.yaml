@@ -1,0 +1,49 @@
+caption: Main results on ImageNet and COCO. Best in bold, second underlined.
+label: tab:main
+columns:
+- Method
+- Top-1
+- Top-5
+- AP
+- AP$_{50}$
+column_groups:
+- title: ImageNet
+  columns:
+  - 1
+  - 2
+- title: COCO
+  columns:
+  - 3
+  - 4
+metric_columns:
+- 1
+- 2
+- 3
+- 4
+higher_is_better:
+  1: true
+  2: true
+  3: true
+  4: true
+rows:
+- - ResNet-50
+  - 76.1
+  - 92.9
+  - —
+  - —
+- - ViT-B/16
+  - 77.9
+  - 93.8
+  - 39.4
+  - 60.1
+- - Ours
+  - 79.2
+  - 94.1
+  - 41.0
+  - 63.2
+- - Ours + router
+  - 79.8
+  - 94.4
+  - 41.3
+  - 63.8
+note: All models use 224 resolution. Best in bold, second underlined.

@@ -83,7 +83,6 @@
           <p id="page-subtitle">DeepSeek 驱动的科研 Agent，工具调用实时流式展示</p>
         </div>
         <div class="topbar-actions">
-          <span id="mock-badge" class="badge badge-warn hidden">离线 Mock</span>
           <span id="health-badge" class="badge badge-ghost">连接中…</span>
           <button id="theme-toggle" class="icon-btn" type="button" title="切换深色 / 浅色主题" aria-label="切换主题">
             <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.2 12.4A7 7 0 0 1 7.6 3.8a7.2 7.2 0 1 0 8.6 8.6Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
@@ -101,6 +100,7 @@
                 <button class="chip" type="button" data-prompt="汇总今天 cs.CV 的 arXiv 新论文，挑 3 篇最值得精读的，说明理由。">📰 每日 arXiv</button>
                 <button class="chip" type="button" data-prompt="精读一篇 ViT 代表论文，输出结构化精读笔记（问题 / 方法 / 实验 / 批判 / 可迁移点）。">📄 读论文</button>
                 <button class="chip" type="button" data-prompt="为我的「自适应 token 路由视频扩散模型」画一张 CVPR 风格的模型架构图，给出 architecture spec。">🎨 生成模型图</button>
+                <button class="chip" type="button" data-demo="tools" data-prompt="演示一次真实的工具调用：读取离线 demo 论文片段并展示工具卡片。">🧰 工具演示</button>
                 <button class="chip" type="button" data-prompt="把这周的实验进展整理成一份中文周报：完成了什么、指标如何、卡在哪里、下周计划。">🗓️ 周报</button>
               </div>
               <div class="chat-toolbar-right">
@@ -327,6 +327,8 @@
                   <tr><td><span class="method get">GET</span></td><td><code>/api/literature/search</code></td><td>真实检索优先，否则回退 demo fixtures</td></tr>
                   <tr><td><span class="method get">GET</span></td><td><code>/api/servers</code></td><td>服务器配置（脱敏，不含任何密钥）</td></tr>
                   <tr><td><span class="method get">GET</span></td><td><code>/api/gpu</code></td><td>nvidia-smi 归一化表格（可选 ?server=）</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/paper/read</code></td><td>论文精读（PDF → 章节结构，T1 工具）</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/recipes</code></td><td>内置 pipeline recipe 列表</td></tr>
                   <tr><td><span class="method get">GET</span></td><td><code>/api/runs</code></td><td>pipeline 运行历史（读 run.json）</td></tr>
                   <tr><td><span class="method post">POST</span></td><td><code>/api/pipeline/run</code></td><td>后台线程启动 pipeline，返回 run_id</td></tr>
                   <tr><td><span class="method get">GET</span></td><td><code>/api/pipeline/{run_id}</code></td><td>轮询状态 / 阶段 / 事件 / 产物</td></tr>

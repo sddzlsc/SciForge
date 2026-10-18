@@ -258,7 +258,7 @@ sciforge chat "帮我调研扩散模型在视频生成中的最新进展"
 sciforge lit search "diffusion transformer" --source arxiv --limit 20
 sciforge lit daily --category cs.CV
 sciforge read 2401.00001 --note
-sciforge idea --topic "..." --from-library
+sciforge idea generate "<topic>"
 sciforge ssh add gpu1 --host 1.2.3.4 --user root --key ~/.ssh/id_ed25519
 sciforge ssh test gpu1
 sciforge gpu status gpu1
@@ -308,7 +308,7 @@ def render_latex_table(spec: dict) -> str     # booktabs 三线表
 ## 12. 测试与验收
 
 - 每个模块交付时：`uv run pytest tests/test_<module>.py -q` 全绿，ruff 无 error。
-- Lead 会在合并后跑全量：`uv run pytest -q`、`sciforge doctor`、`sciforge demo --offline`。
+- Lead 会在合并后跑全量：`uv run pytest -q`、`sciforge doctor`、`sciforge demo`。
 - 不要留下未使用的 import、TODO 占位实现、`raise NotImplementedError`。
 - 交付说明写在最终消息里：改了哪些文件、如何验证、已知限制。
 
@@ -407,6 +407,10 @@ class SkillManager:
   - `POST /api/pipeline/run` → 启动（后台线程）并返回 run_id；配合 `GET /api/pipeline/{run_id}` 轮询
   - `GET /figures/{path}` / `GET /files/{path}`：安全地暴露项目内产物
 - 静态页面：`sciforge/web/static/index.html`（无构建步骤，vanilla JS/CSS）。
+- 实现可额外提供前端所需端点（不属于契约、不破坏上述约定）：`/api/recipes`、
+  `/api/literature/search`、`/api/library/add`、`/api/paper/read`、`/api/gpu`、
+  `/api/artifacts`、`POST /api/skills/install-dsh`、`POST /api/skills/install`、
+  `GET /api/docs`（OpenAPI）。
 - 所有依赖其它模块的 import 必须放在函数内部（延迟导入 + try/except），保证模块未完成时
   Web 仍能启动并显示明确提示。
 

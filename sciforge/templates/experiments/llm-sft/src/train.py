@@ -57,7 +57,7 @@ def run_smoke(args: argparse.Namespace, config: dict[str, Any]) -> dict[str, Any
     for epoch in range(1, epochs + 1):
         loss_sum, tokens = 0.0, 0
         for seq in data:
-            for prev, nxt in zip(seq[:-1], seq[1:]):
+            for prev, nxt in zip(seq[:-1], seq[1:], strict=False):
                 probs = [count / sum(counts[prev]) for count in counts[prev]]
                 loss_sum -= math.log(max(probs[nxt], 1e-9))
                 counts[prev][nxt] += 1.0

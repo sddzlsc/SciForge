@@ -60,7 +60,7 @@ sciforge exp scaffold --template cv-classification --name vit-routing --dataset 
 sciforge exp launch --server gpu1 --name vit-routing-a --script scripts/run.sh --seed 42
 
 sciforge exp status
-sciforge exp logs vit-routing-a -f
+sciforge exp logs vit-routing-a --tail 80
 sciforge exp stop vit-routing-a
 sciforge exp results                     # 回收 metrics.json → results/ + 三线表
 ```

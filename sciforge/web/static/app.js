@@ -66,6 +66,12 @@
     return m + 'm ' + s + 's';
   }
 
+  function fmtElapsed(seconds) {
+    const n = Number(seconds);
+    if (!Number.isFinite(n)) return '—';
+    return n < 0.1 ? Math.max(1, Math.round(n * 1000)) + 'ms' : fmtDuration(n);
+  }
+
   function num(value) {
     if (value === null || value === undefined) return null;
     const match = String(value).match(/-?\d+(\.\d+)?/);
@@ -252,12 +258,24 @@
     try { localStorage.setItem('sciforge-theme', next); } catch (err) { /* ignore */ }
     const btn = $('#theme-toggle');
     if (btn) {
-      btn.textContent = next === 'dark' ? '☀' : '☾';
+      const sun = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">' +
+        '<circle cx="10" cy="10" r="3.3" fill="none" stroke="currentColor" stroke-width="1.5"/>' +
+        '<path d="M10 2.1v2.1M10 15.8v2.1M2.1 10h2.1M15.8 10h2.1M4.4 4.4l1.5 1.5M14.1 14.1l1.5 1.5M15.6 4.4l-1.5 1.5M5.9 14.1l-1.5 1.5" ' +
+        'stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+      const moon = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">' +
+        '<path d="M16.2 12.4A7 7 0 0 1 7.6 3.8a7.2 7.2 0 1 0 8.6 8.6Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+      btn.innerHTML = next === 'dark' ? sun : moon;
       btn.title = next === 'dark' ? '切换到浅色主题' : '切换到深色主题';
     }
   }
 
   /* ---------------------------------- 导航 ---------------------------------- */
+  function pageFromHash() {
+    const match = (window.location.hash || '').match(/^#\/?([a-z-]+)/);
+    if (!match) return null;
+    return document.getElementById('page-' + match[1]) ? match[1] : null;
+  }
+
   function setPage(page) {
     state.page = page;
     $$('.nav-item').forEach((item) => item.classList.toggle('active', item.dataset.page === page));
@@ -273,6 +291,9 @@
     if (page === 'figures' && !state.artifactsLoaded) loadArtifacts();
     if (page === 'skills' && !state.skillsLoaded) loadSkills('');
     if (page === 'about') renderAbout();
+    if (window.location.hash !== '#/' + page) {
+      try { history.replaceState(null, '', '#/' + page); } catch (err) { /* ignore */ }
+    }
   }
 
   /* ---------------------------------- 健康检查 / 关于 ---------------------------------- */
@@ -285,7 +306,6 @@
       const badge = $('#health-badge');
       badge.textContent = health.mock ? '离线演示模式' : 'LLM 已连接';
       badge.className = 'badge ' + (health.mock ? 'badge-warn' : 'badge-ok');
-      $('#mock-badge').classList.toggle('hidden', !health.mock);
 
       const llm = health.llm || {};
       const llmDot = $('#dot-llm');
@@ -467,7 +487,9 @@
     const status = card.querySelector('.tool-status');
     if (status) status.className = 'tool-status dot ' + (payload.ok === false ? 'dot-err' : 'dot-ok');
     const time = card.querySelector('.tool-time');
-    if (time) time.textContent = (payload.elapsed !== undefined && payload.elapsed !== null) ? fmtDuration(payload.elapsed) : '完成';
+    if (time) {
+      time.textContent = fmtElapsed(payload.elapsed);
+    }
     const slot = card.querySelector('.result-slot');
     if (slot) {
       let html = '<div class="tool-section-label">结果</div>';
@@ -583,7 +605,7 @@
       '步数 ' + ((done && done.steps) || 0),
       '工具 ' + ((done && done.tool_calls) || 0),
       'tokens ' + (usage.total_tokens || 0),
-      '耗时 ' + ((done && done.duration) ? fmtDuration(done.duration) : '—'),
+      '耗时 ' + ((done && done.duration !== undefined) ? fmtElapsed(done.duration) : '—'),
     ]);
     if (done && done.artifacts && done.artifacts.length) {
       const box = el('div', 'file-links');
@@ -629,7 +651,7 @@
     handleAgentEvent(event, data || {});
   }
 
-  async function sendChat(message) {
+  async function sendChat(message, options) {
     const text = String(message || '').trim();
     if (!text || state.chat.streaming) return;
     hideWelcome();
@@ -654,6 +676,7 @@
           message: text,
           mock: $('#mock-toggle').checked,
           session_id: state.chat.sessionId || null,
+          demo_tools: Boolean(options && options.demoTools),
         }),
         signal: controller.signal,
       });
@@ -760,7 +783,7 @@
         const prompt = chip.dataset.prompt || chip.textContent;
         input.value = '';
         autoResizeInput();
-        sendChat(prompt);
+        sendChat(prompt, { demoTools: chip.dataset.demo === 'tools' });
       });
     });
     $('#mock-toggle').addEventListener('change', (event) => {
@@ -816,7 +839,7 @@
       badge.textContent = data.degraded ? '离线 Demo Fixtures' : 'lit_search · ' + (data.source || 'arxiv');
       badge.className = 'badge ' + (data.degraded ? 'badge-warn' : 'badge-ok');
       if (data.notice) {
-        $('#lit-notice').innerHTML = noticeHtml(data.notice + '（完整演示数据见 examples/demo/fixtures）', data.degraded ? 'warn' : '');
+        $('#lit-notice').innerHTML = noticeHtml(data.notice, data.degraded ? 'warn' : '');
         $('#lit-notice').classList.remove('hidden');
       }
       const papers = (data.papers || []).filter((paper) => paper.source !== 'daily');
@@ -980,9 +1003,9 @@
     try {
       const data = await api('/api/servers');
       renderServers(data);
-      if (state.servers.length && !state.gpuProbed) {
+      if (!state.gpuProbed) {
         state.gpuProbed = true;
-        probeGpu(state.servers[0].name);
+        probeGpu(state.servers.length ? state.servers[0].name : null);
       }
     } catch (err) {
       $('#srv-list').innerHTML = emptyState('⚠️', '读取服务器配置失败：' + err.message);
@@ -1051,8 +1074,19 @@
         return;
       }
       if (!(data.gpus || []).length) {
-        body.innerHTML = noticeHtml('已连接，但未解析到 GPU 行数据。' + (data.content ? '' : '可能是本机无 NVIDIA GPU 或远端 nvidia-smi 不可用。'), 'warn') +
-          (data.content ? '<pre class="code-block">' + escapeHtml(data.content) + '</pre>' : '');
+        const local = data.data || {};
+        const pills = [];
+        if (local.platform) pills.push(['本机平台', local.platform + (local.arch ? ' / ' + local.arch : '')]);
+        if (typeof local.mps === 'boolean') pills.push(['Apple MPS', local.mps ? '可用' : '不可用']);
+        if (local.server) pills.push(['目标', String(local.server)]);
+        const summary = pills.length
+          ? '<div class="gpu-summary">' + pills.map((pair) =>
+              '<div class="gpu-pill"><span>' + escapeHtml(pair[0]) + '</span><strong>' + escapeHtml(pair[1]) + '</strong></div>'
+            ).join('') + '</div>'
+          : '';
+        body.innerHTML = summary +
+          noticeHtml('已连接，但当前环境没有可用的 NVIDIA GPU 行数据。' + (data.content ? '' : '可能是本机无 NVIDIA GPU 或远端 nvidia-smi 不可用。'), 'warn') +
+          (data.content ? '<pre class="code-block" style="border:1px solid var(--border-soft);border-radius:var(--radius-xs)">' + escapeHtml(data.content) + '</pre>' : '');
         return;
       }
       body.innerHTML = gpuTable(data.gpus);
@@ -1525,6 +1559,12 @@
     bindSkills();
     loadHealth();
     autoResizeInput();
+    window.addEventListener('hashchange', () => {
+      const page = pageFromHash();
+      if (page && page !== state.page) setPage(page);
+    });
+    const initialPage = pageFromHash();
+    if (initialPage) setPage(initialPage);
   }
 
   if (document.readyState === 'loading') {

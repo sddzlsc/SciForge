@@ -26,3 +26,8 @@ paper.pdf
 # User secrets
 .env
 config.local.toml
+
+# SciForge 项目级运行状态（在仓库根目录跑 pipeline 时生成）
+/research-state.yaml
+/findings.md
+/research-log.md

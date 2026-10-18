@@ -6,7 +6,7 @@
 sciforge doctor                       # LLM/依赖/服务器体检
 sciforge init my-project --topic "..." # 新建科研项目（.sciforge/project.toml）
 sciforge --help                        # 查看全部子命令
-sciforge demo --offline                # 离线演示（Mock LLM）
+sciforge demo                          # 离线演示（Mock LLM，无需 key）
 sciforge serve --port 8765             # 本地 Web 控制台
 ```
 
@@ -16,7 +16,7 @@ sciforge serve --port 8765             # 本地 Web 控制台
 sciforge lit search "diffusion transformer" --source arxiv --limit 30
 sciforge lit search "..." --source semantic_scholar|openalex|hf_papers|crossref
 sciforge lit daily --category cs.CV --limit 30
-sciforge lit cite 2401.00001 --out references.bib
+sciforge lit cite 2401.00001 -o references.bib
 sciforge read 2401.00001 --note        # 下载 + 精读笔记
 sciforge read 2401.00001 --ask "..."   # 就论文自由问答
 ```
@@ -26,7 +26,7 @@ sciforge read 2401.00001 --ask "..."   # 就论文自由问答
 ## 3. 创新点
 
 ```bash
-sciforge idea --topic "长视频一致性" --from-library
+sciforge idea generate "长视频一致性" --context notes/survey.md
 sciforge chat "基于这些文献，给出 3 个可证伪的创新假设"
 ```
 
@@ -60,13 +60,13 @@ sciforge fig table --spec tables/main.yaml -o tables/main.tex
 
 ```bash
 sciforge write draft --venue cvpr --title "..."
-sciforge write section method --paper paper/
-sciforge write cite 2401.00001 --paper paper/
-sciforge write compile --paper paper/
-sciforge write review --paper paper/ --results results/
+sciforge write section --name 03_method --content-file sections/method.tex --dir paper
+sciforge write cite --arxiv 2401.00001 --dir paper
+sciforge write compile --dir paper
+sciforge write review --dir paper --results results/
 ```
 
-对应工具：`paper_init`、`paper_section`、`paper_cite`、`paper_compile`、`paper_review`。
+对应工具：`paper_init`、`paper_section`、`citation_add`、`paper_compile`、`paper_review`。
 
 ## 7. Pipeline 与 Skill
 

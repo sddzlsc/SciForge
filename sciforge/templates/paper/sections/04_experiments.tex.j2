@@ -1,0 +1,30 @@
+% =============================================================================
+% Section 4: Experiments（实验设置 → 主结果 → 消融 → 分析；每个论断对应一张表/图）
+% TODO: 表格由 `sciforge fig table --spec results/table_main.yaml` 生成后 \input 进来。
+% =============================================================================
+\section{Experiments}
+\label{sec:exp}
+
+\subsection{Experimental Setup}
+\label{sec:exp-setup}
+\paragraph{Datasets.} TODO: 数据集、规模、划分、预处理。
+\paragraph{Baselines.} TODO: 对比方法（强基线 + 近期 SOTA），说明公平性设置。
+\paragraph{Implementation details.} TODO: 模型规模、优化器、学习率、batch size、训练轮数、
+GPU 型号与数量、随机种子。参考配置：TODO.
+
+\subsection{Main Results}
+\label{sec:exp-main}
+% TODO: 取消注释并放入主结果表（三线表，最佳加粗、次佳下划线）。
+% \input{tables/table_main.tex}
+
+TODO: 主结果分析：不只说“更好”，要解释“为什么更好”，并给出关键数字。
+
+\subsection{Ablation Study}
+\label{sec:exp-ablation}
+% TODO: 消融表 + 每个组件的作用分析。
+% \input{tables/table_ablation.tex}
+
+\subsection{Analysis}
+\label{sec:exp-analysis}
+% TODO: 可视化、失败案例分析、超参数敏感性、效率（FLOPs/延迟/显存）。
+% 例如曲线图：sciforge fig plot --spec figures/curve.yaml -o figures/curve.pdf

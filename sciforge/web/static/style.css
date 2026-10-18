@@ -711,6 +711,8 @@ html[data-theme="light"] .msg.user .msg-content {
 .tool-error { color: var(--err); }
 
 /* 快捷命令 chips + 状态 */
+.chat-status .badge { white-space: normal; line-height: 1.45; }
+#theme-toggle svg { display: block; }
 .chat-status {
   display: flex;
   flex-wrap: wrap;
@@ -968,7 +970,7 @@ html[data-theme="light"] .msg.user .msg-content {
 }
 .file-row:hover { border-color: var(--accent); background: var(--accent-soft); }
 .file-icon { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: var(--panel-3); font-size: 14px; }
-.file-main { flex: 1; min-width: 0; }
+.file-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .file-name { font-family: var(--font-mono); font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-sub { font-size: 10.5px; color: var(--muted-2); }
 .file-kind { flex: none; font-size: 10px; color: var(--muted-2); text-transform: uppercase; letter-spacing: 0.05em; }

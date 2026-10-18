@@ -1,0 +1,42 @@
+# SciForge ICLR style — 顶会论文数据图
+# 无顶/右边框、tick 朝内、细线、7-9pt、色盲友好、矢量导出字体可嵌入
+
+figure.dpi: 150
+savefig.dpi: 300
+figure.figsize: 3.25, 2.2
+font.family: sans-serif
+font.sans-serif: DejaVu Sans, Helvetica, Arial, Noto Sans CJK SC
+font.size: 8
+axes.titlesize: 8
+axes.labelsize: 8
+xtick.labelsize: 7
+ytick.labelsize: 7
+legend.fontsize: 7
+axes.linewidth: 0.6
+axes.spines.top: False
+axes.spines.right: False
+axes.grid: False
+grid.linewidth: 0.4
+grid.alpha: 0.55
+grid.color: "#D3D9E0"
+xtick.direction: in
+ytick.direction: in
+xtick.major.width: 0.6
+ytick.major.width: 0.6
+xtick.major.size: 2.6
+ytick.major.size: 2.6
+xtick.minor.size: 1.4
+ytick.minor.size: 1.4
+legend.frameon: False
+legend.handlelength: 1.7
+legend.borderaxespad: 0.35
+lines.linewidth: 1.2
+lines.markersize: 3.0
+pdf.fonttype: 42
+ps.fonttype: 42
+svg.fonttype: path
+savefig.bbox: tight
+savefig.pad_inches: 0.02
+mathtext.fontset: dejavusans
+axes.facecolor: white
+figure.facecolor: white

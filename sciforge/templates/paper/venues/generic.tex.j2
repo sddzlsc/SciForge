@@ -1,0 +1,21 @@
+% -----------------------------------------------------------------------------
+% Generic 模板：只用标准 LaTeX 宏包，不依赖任何会议官方 sty，
+% 保证在没有 cvpr.sty / neurips_2024.sty 的机器上也能直接编译。
+% 中文草稿：把 inputenc/fontenc 两行换成 \usepackage{ctex}，用 xelatex 编译。
+% -----------------------------------------------------------------------------
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{xcolor}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+\usepackage[colorlinks=true,linkcolor=blue!55!black,citecolor=blue!55!black,urlcolor=blue!55!black]{hyperref}
+\newcommand{\ours}{\textsc{Ours}}
+\newcommand{\R}{\mathbb{R}}

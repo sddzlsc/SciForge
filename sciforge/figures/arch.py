@@ -699,9 +699,6 @@ def _layout(spec: dict[str, Any]) -> _Layout:
         legend = []  # 单一元素不值得画图例
 
     # 边：解析端点、计算路径（自动避让中间节点）
-    obstacle_rects = [
-        node["rect"] for node in nodes.values() if node["kind"] != "note"
-    ]
     edges: list[dict[str, Any]] = []
     for raw in spec.get("edges") or []:
         if not isinstance(raw, dict):
@@ -791,10 +788,14 @@ def _spread_endpoints(
             continue
         horizontal_side = side in ("left", "right")
 
-        def sort_key(item: tuple[dict[str, Any], str]) -> float:
+        def sort_key(
+            item: tuple[dict[str, Any], str],
+            *,
+            horizontal: bool = horizontal_side,
+        ) -> float:
             edge, which = item
             point = edge["points"][0] if which == "start" else edge["points"][-1]
-            return point[1] if horizontal_side else point[0]
+            return point[1] if horizontal else point[0]
 
         items.sort(key=sort_key)
         for index, (edge, which) in enumerate(items):
@@ -1216,6 +1217,28 @@ def _edge_markers(edges: list[dict[str, Any]]) -> dict[str, str]:
     return markers
 
 
+def _arrowhead_polygon(edge: dict[str, Any]) -> str:
+    """显式三角形箭头：不依赖 SVG marker，所有栅格化器都能正确渲染。"""
+    points = edge.get("points") or []
+    if len(points) < 2:
+        return ""
+    tip = points[-1]
+    previous = points[-2]
+    dx = tip[0] - previous[0]
+    dy = tip[1] - previous[1]
+    length = math.hypot(dx, dy)
+    if length < 1e-6:
+        return ""
+    ux, uy = dx / length, dy / length
+    base = (tip[0] - ux * 4.6, tip[1] - uy * 4.6)
+    half = 2.0
+    left = (base[0] - uy * half, base[1] + ux * half)
+    right = (base[0] + uy * half, base[1] - ux * half)
+    color = edge["style"]["color"]
+    coords = " ".join(f"{_f(x)},{_f(y)}" for x, y in (tip, left, right))
+    return f'<polygon class="arrowhead" points="{coords}" fill="{color}"/>'
+
+
 def _render_edge(edge: dict[str, Any]) -> str:
     style = edge["style"]
     dash = ' stroke-dasharray="3.2 2.4"' if style["dashed"] else ""
@@ -1223,11 +1246,13 @@ def _render_edge(edge: dict[str, Any]) -> str:
     path = edge["path"]
     if not path:
         return ""
-    return (
+    line = (
         f'<path d="{path}" fill="none" stroke="{style["color"]}" '
         f'stroke-width="{_f(EDGE_WIDTH)}" stroke-linecap="round" '
         f'stroke-linejoin="round"{dash}{marker}/>'
     )
+    arrow = _arrowhead_polygon(edge)
+    return f"{line}\n    {arrow}" if arrow else line
 
 
 def _rects_overlap(a: Rect, b: Rect) -> bool:

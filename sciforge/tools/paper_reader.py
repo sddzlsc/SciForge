@@ -598,11 +598,15 @@ def _llm_text(
     system: str | None = None,
     role: str = "executor",
 ) -> str | None:
+    """调用 LLM；同时兼容 ``LLMRouter``（按角色）与裸 ``LLMProvider``（含 MockProvider）。"""
     router = _get_router(ctx)
     if router is None:
         return None
     try:
-        text = router.complete(role, prompt, system=system)
+        if hasattr(router, "for_role"):  # LLMRouter
+            text = router.complete(role, prompt, system=system)
+        else:  # LLMProvider（测试可注入 MockProvider）
+            text = router.complete(prompt, system=system)
     except Exception as exc:  # noqa: BLE001 - 任何 LLM 失败都回退离线
         ctx.log(f"LLM 调用失败，回退离线模式：{exc}", level="warn")
         return None
@@ -697,7 +701,7 @@ def _load_paper(
 
 # ---------------------------------------------------------------------------
 # 笔记生成
-# -------------------------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 
 
 def _note_header(paper: _PaperText) -> str:

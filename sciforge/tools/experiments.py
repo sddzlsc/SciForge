@@ -21,7 +21,7 @@ import posixpath
 import re
 import shutil
 import subprocess
-import time
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from itertools import product
@@ -114,13 +114,15 @@ def write_yaml_file(path: str | Path, data: dict[str, Any]) -> Path:
 
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """递归合并 dict（override 优先）。"""
-    merged = dict(base)
+    """递归合并 dict（override 优先；返回全新对象，不共享嵌套引用）。"""
+    import copy
+
+    merged = copy.deepcopy(base)
     for key, value in (override or {}).items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
             merged[key] = deep_merge(merged[key], value)
         else:
-            merged[key] = value
+            merged[key] = copy.deepcopy(value)
     return merged
 
 
@@ -472,12 +474,18 @@ def describe_scaffold(info: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_executor(ctx: ToolContext, server_name: str | None, *, local: bool = False):
+def _resolve_executor(
+    ctx: ToolContext,
+    server_name: str | None,
+    *,
+    local: bool = False,
+    workdir: str | Path | None = None,
+):
     """返回 (executor, server 或 None)；本地模式 server=None。"""
     from sciforge.tools.remote import LocalExecutor, make_executor
 
     if local:
-        return LocalExecutor(workdir=ctx.project_dir), None
+        return LocalExecutor(workdir=workdir or ctx.project_dir), None
     server = ctx.get_server(server_name)
     if server is None:
         raise ValueError(
@@ -499,6 +507,13 @@ def _executor_for_record(ctx: ToolContext, record: RunRecord):
     return SSHExecutor(server), server
 
 
+def _script_launch_command(script: str) -> str:
+    """按脚本后缀选择解释器：.py → python，其余 → bash。"""
+    suffix = Path(script).suffix.lower()
+    interpreter = "python" if suffix == ".py" else "bash"
+    return f"{interpreter} {script}"
+
+
 def _validate_config(config_path: Path) -> dict[str, Any] | None:
     """校验实验 YAML 配置；非法时抛 ValueError。"""
     if not config_path.exists():
@@ -516,6 +531,7 @@ def _launch_prepared(
     exp_dir: Path,
     sync: bool,
     sync_excludes: list[str] | None = None,
+    smoke: bool = False,
 ) -> RunRecord:
     """已确定 executor/command 的启动逻辑：可选同步 → 后台启动 → 写 run.json。"""
     is_remote = server is not None
@@ -586,15 +602,21 @@ def _launch_prepared(
             job = executor.submit_slurm(script, run_id=run_id, log_path=log_path)
             job.setdefault("mode", "slurm")
         else:
+            extra_env = {"SCIFORGE_RUN_DIR": run_dir_token, "SCIFORGE_RUN_ID": run_id}
+            if not is_remote:
+                # 本地启动用当前解释器，避免 PATH 里没有 python 的机器跑不起来
+                extra_env["SCIFORGE_PYTHON"] = sys.executable
             job = executor.run_detached(
                 run_id,
                 command,
                 log_path,
-                extra_env={"SCIFORGE_RUN_DIR": run_dir_token, "SCIFORGE_RUN_ID": run_id},
+                extra_env=extra_env,
             )
         record.job_id = str(job.get("job_id") or "")
         record.mode = str(job.get("mode") or record.mode)
         record.notes = str(job.get("warning") or "")
+        if smoke:
+            record.notes = ("smoke 模式（CPU 无数据自检）\n" + record.notes).strip()
         if job.get("tmux_error"):
             record.notes = (record.notes + f"\ntmux 不可用，已退回 nohup：{job['tmux_error']}").strip()
         save_run(record, project_dir)
@@ -623,8 +645,13 @@ def launch_experiment(
     exp_dir: str | Path | None = None,
     sync: bool = True,
     local: bool = False,
+    smoke: bool = False,
 ) -> RunRecord:
-    """启动一次实验：校验配置 → 同步 → 后台运行 → 写 run.json。"""
+    """启动一次实验：校验配置 → 同步 → 后台运行 → 写 run.json。
+
+    ``smoke=True`` 时优先执行模板的 ``scripts/smoke.sh``（CPU 无数据，1 分钟内完成），
+    用于在没有 GPU/torch 的机器上验证 launch→status→results 全链路。
+    """
     project_dir = Path(ctx.project_dir).resolve()
     directory = Path(exp_dir).expanduser() if exp_dir else project_dir
     if not directory.is_absolute():
@@ -642,7 +669,9 @@ def launch_experiment(
             script_path = directory / script_path
         if not script_path.exists():
             raise FileNotFoundError(f"启动脚本不存在：{script_path}")
-        launch_command = f"bash {Path(script).as_posix()}"
+        launch_command = _script_launch_command(Path(script).as_posix())
+    elif smoke and (directory / "scripts" / "smoke.sh").exists():
+        launch_command = "bash scripts/smoke.sh"
     elif (directory / "scripts" / "run.sh").exists():
         launch_command = "bash scripts/run.sh"
     else:
@@ -656,11 +685,11 @@ def launch_experiment(
         config_path = directory / candidate
         if config_path.exists():
             loaded = _validate_config(config_path)
-            if detected_template is None:
+            if not detected_template:
                 detected_template = str((loaded or {}).get("template") or "")
             break
     experiment_meta = directory / "experiment.json"
-    if detected_template is None and experiment_meta.exists():
+    if not detected_template and experiment_meta.exists():
         try:
             detected_template = str(
                 (json.loads(experiment_meta.read_text(encoding="utf-8")) or {}).get("template") or ""
@@ -669,8 +698,8 @@ def launch_experiment(
             pass
     detected_template = detected_template or (template or "custom")
 
-    # 3) 执行器
-    executor, server_obj = _resolve_executor(ctx, server, local=local)
+    # 3) 执行器（本地实验以实验目录为工作目录）
+    executor, server_obj = _resolve_executor(ctx, server, local=local, workdir=directory)
 
     run_id = new_run_id(name or Path(directory).name or detected_template)
     record = RunRecord(
@@ -697,6 +726,7 @@ def launch_experiment(
         exp_dir=directory,
         sync=sync,
         sync_excludes=excludes,
+        smoke=smoke,
     )
 
 
@@ -778,6 +808,22 @@ def refresh_record(ctx: ToolContext, record: RunRecord, *, tail_lines: int = 40)
         except ValueError:
             record.status = new_status
             record.updated_at = now_utc8()
+        if new_status == "done" and metrics_exists:
+            try:
+                raw_metrics = json.loads(
+                    (run_dir_for(project_dir, record.run_id) / "metrics.json").read_text(encoding="utf-8")
+                )
+                canonical = normalize_metrics(
+                    raw_metrics,
+                    run_id=record.run_id,
+                    source=str(run_dir_for(project_dir, record.run_id) / "metrics.json"),
+                )
+                record.metrics = {
+                    **{key: value for key, value in canonical["summary"].items() if _is_number(value)},
+                    "num_epochs": canonical["num_epochs"],
+                }
+            except (OSError, ValueError, json.JSONDecodeError):
+                pass
         if log_text:
             record.notes = (record.notes + "\n" if record.notes else "") + log_text.strip().splitlines()[-1][:300]
         save_run(record, project_dir)
@@ -927,14 +973,19 @@ def build_curve_data(
         if any(value is None for value in y_values):
             continue
         series.append({"name": name, "x": x_values, "y": y_values, "kind": "line"})
+    # 同时兼容 T3 ``render_plot`` 的 spec 键（kind/xlabel/ylabel）与自描述键
     return {
         "run_id": run_id,
+        "kind": "line",
         "title": title or f"{run_id} metrics",
+        "xlabel": "epoch",
+        "ylabel": "value",
         "x_label": "epoch",
         "y_label": "value",
         "x": x_values,
         "series": series,
         "style": "neurips",
+        "legend": True,
     }
 
 
@@ -955,8 +1006,12 @@ def collect_results(
     run_id: str | None = None,
     metrics_path: str | Path | None = None,
     download: bool = True,
+    out_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """收集 metrics → ``results/<run_id>/`` 写 metrics.json/table.md/curves.json。"""
+    """收集 metrics → ``results/<run_id>/`` 写 metrics.json/table.md/curves.json。
+
+    ``out_dir`` 可覆盖结果根目录（默认项目 ``results/``）。
+    """
     project_dir = Path(ctx.project_dir).resolve()
     record: RunRecord | None = None
     if run_id:
@@ -1008,7 +1063,16 @@ def collect_results(
     raw = json.loads(source_path.read_text(encoding="utf-8"))
     canonical = normalize_metrics(raw, run_id=resolved_run_id, source=str(source_path))
 
-    result_dir = results_root(project_dir) / resolved_run_id
+    if out_dir:
+        results_base = Path(out_dir).expanduser()
+        if not results_base.is_absolute():
+            results_base = project_dir / results_base
+        results_base = results_base.resolve()
+        if not _is_within(results_base, project_dir) and not _is_within(results_base, Path(ctx.data_dir).resolve()):
+            raise PermissionError(f"拒绝写入项目/数据目录之外的结果目录：{results_base}")
+    else:
+        results_base = results_root(project_dir)
+    result_dir = results_base / resolved_run_id
     result_dir.mkdir(parents=True, exist_ok=True)
     metrics_out = result_dir / "metrics.json"
     metrics_out.write_text(
@@ -1084,7 +1148,7 @@ def expand_grid(base: dict[str, Any], grid: dict[str, Any]) -> list[dict[str, An
     configs: list[dict[str, Any]] = []
     for combination in product(*value_lists):
         config = deep_merge({}, base)
-        for key, value in zip(keys, combination):
+        for key, value in zip(keys, combination, strict=False):
             set_nested(config, key, value)
         configs.append(config)
     return configs
@@ -1148,7 +1212,9 @@ def sweep_experiments(
     executor = None
     server_obj = None
     if launch:
-        executor, server_obj = _resolve_executor(ctx, server or sweep.get("server"), local=local)
+        executor, server_obj = _resolve_executor(
+            ctx, server or sweep.get("server"), local=local, workdir=project_dir
+        )
     target_server = (
         server_obj.name if server_obj is not None else ("local" if local or not launch else "unlaunched")
     )
@@ -1326,6 +1392,7 @@ class ExpLaunchTool(BaseTool):
             "dir": {"type": "string", "description": "实验目录（默认为项目根目录）"},
             "sync": {"type": "boolean", "default": True, "description": "远端启动前是否 rsync 上传项目"},
             "local": {"type": "boolean", "default": False, "description": "无服务器时本地后台启动"},
+            "smoke": {"type": "boolean", "default": False, "description": "运行 scripts/smoke.sh（CPU 无数据自检）"},
         },
         "required": [],
     }
@@ -1342,6 +1409,7 @@ class ExpLaunchTool(BaseTool):
                 exp_dir=kwargs.get("dir"),
                 sync=bool(kwargs.get("sync", True)),
                 local=bool(kwargs.get("local")),
+                smoke=bool(kwargs.get("smoke")),
             )
         except (ValueError, FileNotFoundError, PermissionError) as exc:
             return ToolResult.failure(str(exc))
@@ -1517,6 +1585,7 @@ class ExpResultsTool(BaseTool):
             "run_id": {"type": "string", "description": "run id（省略则取最近一次）"},
             "metrics": {"type": "string", "description": "直接指定 metrics.json 路径"},
             "download": {"type": "boolean", "default": True, "description": "远端 run 是否自动下载 metrics"},
+            "out": {"type": "string", "description": "结果根目录（默认项目 results/）"},
         },
         "required": [],
     }
@@ -1528,6 +1597,7 @@ class ExpResultsTool(BaseTool):
                 run_id=kwargs.get("run_id"),
                 metrics_path=kwargs.get("metrics"),
                 download=bool(kwargs.get("download", True)),
+                out_dir=kwargs.get("out"),
             )
         except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
             return ToolResult.failure(str(exc))
@@ -1634,7 +1704,12 @@ def _fail(message: str, *, json_mode: bool = False):
 
 
 def _run_tool_or_fail(tool: BaseTool, ctx: ToolContext, *, json_mode: bool, **kwargs: Any) -> ToolResult:
-    result = tool.run(ctx, **kwargs)
+    import typer
+
+    try:
+        result = tool.run(ctx, **kwargs)
+    except ValueError as exc:  # 参数缺失等可预期错误，不裸抛 traceback
+        result = ToolResult.failure(str(exc))
     if json_mode:
         _json_out({"ok": result.ok, **result.data, "content": result.content, "artifacts": result.artifacts})
         if not result.ok:
@@ -1689,6 +1764,7 @@ def build_exp_app() -> Any:
         directory: str = typer.Option(None, "--dir", help="实验目录（默认项目根）"),
         sync: bool = typer.Option(True, "--sync/--no-sync", help="远端启动前 rsync 上传"),
         local: bool = typer.Option(False, "--local", help="无服务器时本地后台启动"),
+        smoke: bool = typer.Option(False, "--smoke", help="运行 scripts/smoke.sh（CPU 无数据自检）"),
         json_mode: bool = typer.Option(False, "--json"),
     ) -> None:
         """启动实验：校验配置 → 同步 → 后台运行 → 写 run.json。"""
@@ -1705,6 +1781,7 @@ def build_exp_app() -> Any:
             dir=directory,
             sync=sync,
             local=local,
+            smoke=smoke,
         )
 
     @app.command("status")
@@ -1723,7 +1800,7 @@ def build_exp_app() -> Any:
     @app.command("logs")
     def exp_logs(
         run_id: str = typer.Argument(None, help="run id（省略则取最近一次）"),
-        lines: int = typer.Option(100, "--lines"),
+        lines: int = typer.Option(100, "--lines", "--tail", help="最后 N 行（--tail 为别名）"),
         json_mode: bool = typer.Option(False, "--json"),
     ) -> None:
         """查看训练日志。"""
@@ -1741,16 +1818,62 @@ def build_exp_app() -> Any:
 
     @app.command("results")
     def exp_results(
-        run_id: str = typer.Argument(None, help="run id（省略则取最近一次）"),
+        run_ids: list[str] = typer.Argument(None, help="run id 列表（省略则取最近一次）"),
         metrics: str = typer.Option(None, "--metrics", help="直接指定 metrics.json"),
         download: bool = typer.Option(True, "--download/--no-download"),
+        out: str = typer.Option(None, "--out", help="结果根目录（默认 results/）"),
         json_mode: bool = typer.Option(False, "--json"),
     ) -> None:
-        """汇总结果：metrics.json → 三线表 + 曲线数据。"""
+        """汇总结果：metrics.json → 三线表 + 曲线数据（支持一次多个 run）。"""
         ctx = _make_ctx()
-        _run_tool_or_fail(
-            ExpResultsTool(), ctx, json_mode=json_mode, run_id=run_id, metrics=metrics, download=download
-        )
+        targets: list[str | None] = list(run_ids or []) or [None]
+        results = []
+        for target in targets:
+            tool_result = ExpResultsTool().run(
+                ctx, run_id=target, metrics=metrics, download=download, out=out
+            )
+            results.append(tool_result)
+        if json_mode:
+            if len(results) == 1:
+                payload = {
+                    "ok": results[0].ok,
+                    **results[0].data,
+                    "content": results[0].content,
+                    "artifacts": results[0].artifacts,
+                }
+            else:
+                payload = {
+                    "ok": all(result.ok for result in results),
+                    "runs": [
+                        {"ok": result.ok, **result.data, "content": result.content, "artifacts": result.artifacts}
+                        for result in results
+                    ],
+                }
+            _json_out(payload)
+            if not all(result.ok for result in results):
+                raise typer.Exit(1)
+            return
+        summary_lines: list[str] = []
+        for result in results:
+            if result.ok:
+                _console().print(result.content)
+                summary_lines.append(result.content)
+            else:
+                _fail(result.error or result.content, json_mode=False)
+        if len(results) > 1:
+            from rich.table import Table
+
+            table = Table(title="结果汇总")
+            table.add_column("run_id")
+            table.add_column("epochs")
+            table.add_column("summary")
+            for result in results:
+                table.add_row(
+                    str(result.data.get("run_id", "")),
+                    str(result.data.get("num_epochs", "")),
+                    json.dumps(result.data.get("summary", {}), ensure_ascii=False),
+                )
+            _console().print(table)
 
     @app.command("sweep")
     def exp_sweep(

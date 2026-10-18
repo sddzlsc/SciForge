@@ -607,9 +607,9 @@ def pipeline_run(
     runner = PipelineRunner(settings, project, mock=mock, bus=bus)
     try:
         run = runner.run(recipe, topic, until=until)
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as exc:
         err_console.print("[yellow]已中断[/yellow]")
-        raise typer.Exit(130)
+        raise typer.Exit(130) from exc
     if json_output:
         _json_out(run.to_dict())
         return
@@ -759,7 +759,7 @@ def config_show(
     """显示合并后的配置（密钥已脱敏）。"""
     settings = _settings(project)
     data = settings.model_dump(mode="json", exclude={"project_dir"})
-    for name, provider in (data.get("llm", {}).get("providers") or {}).items():
+    for _name, provider in (data.get("llm", {}).get("providers") or {}).items():
         if provider.get("api_key"):
             provider["api_key"] = "***"
     data["_meta"] = {

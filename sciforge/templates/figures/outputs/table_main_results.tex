@@ -1,0 +1,20 @@
+% Requires \usepackage{booktabs}
+\begin{table}[t]
+\centering
+\small
+\caption{Main results on ImageNet and COCO. Best in bold, second underlined.}
+\label{tab:main}
+\begin{tabular}{lcccc}
+\toprule
+\multicolumn{1}{l}{Method} & \multicolumn{2}{c}{\textbf{ImageNet}} & \multicolumn{2}{c}{\textbf{COCO}} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+ & Top-1 & Top-5 & AP & AP$_{50}$ \\
+\midrule
+ResNet-50 & 76.1 & 92.9 & --- & --- \\
+ViT-B/16 & 77.9 & 93.8 & 39.4 & 60.1 \\
+Ours & \underline{79.2} & \underline{94.1} & \underline{41.0} & \underline{63.2} \\
+Ours + router & \textbf{79.8} & \textbf{94.4} & \textbf{41.3} & \textbf{63.8} \\
+\bottomrule
+\end{tabular}
+\par\smallskip\footnotesize All models use 224 resolution. Best in bold, second underlined.
+\end{table}

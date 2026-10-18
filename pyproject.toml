@@ -64,6 +64,7 @@ sciforge = [
     "skills_lib/**/*.md",
     "skills_lib/**/*.yaml",
     "skills_lib/**/*.toml",
+    "skills_lib/**/*.py",
     "templates/**/*",
     "figures/styles/*.mplstyle",
     "web/static/*",
@@ -73,6 +74,9 @@ sciforge = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "integration: 需要真实网络的集成测试（默认跳过）",
+]
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.ruff]

@@ -764,7 +764,7 @@ def test_record_to_bibtex_arxiv_and_doi() -> None:
         categories=["cs.CV"],
     )
     bibtex = literature.record_to_bibtex(arxiv_record)
-    assert bibtex.startswith("@article{alice2024diffusion,")
+    assert bibtex.startswith("@article{smith2024diffusion,")
     assert "eprint = {2401.00001}" in bibtex
     assert "archivePrefix = {arXiv}" in bibtex
     assert "primaryClass = {cs.CV}" in bibtex
@@ -843,7 +843,7 @@ def test_extract_title_prefers_metadata_then_first_line() -> None:
         paper_reader.extract_title(PAPER_TEXT)
         == "Diffusion Transformers for Video Generation"
     )
-    assert paper_reader.extract_title("no title here") == ""
+    assert paper_reader.extract_title("Short") == ""
 
 
 def test_extract_text_from_pdf_pymupdf(tmp_path: Path) -> None:
@@ -1022,6 +1022,139 @@ def test_paper_compare_requires_two_papers(tmp_path: Path) -> None:
     result = paper_reader.PaperCompareTool().run(ctx, papers=[str(text_path)])
     assert not result.ok
     assert "至少需要 2 篇" in result.error
+
+
+def test_paper_fetch_doi_uses_openalex_oa(tmp_path: Path) -> None:
+    openalex_payload = {
+        "results": [
+            {
+                "id": "https://openalex.org/W999",
+                "doi": "https://doi.org/10.1234/xyz",
+                "display_name": "DOI OA Paper",
+                "publication_date": "2024-04-01",
+                "authorships": [{"author": {"display_name": "Dana Qi"}}],
+                "primary_location": {"landing_page_url": "https://example.org/doi"},
+                "best_oa_location": {"pdf_url": "https://example.org/doi.pdf"},
+                "concepts": [{"display_name": "Computer science"}],
+            }
+        ]
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "api.openalex.org" in url:
+            assert "filter=doi" in url or "doi%3A" in url
+            return json_response(openalex_payload)
+        if "example.org/doi.pdf" in url:
+            return pdf_response()
+        return text_response("not found", status=404)
+
+    with mock_http(handler) as client:
+        ctx = make_ctx(tmp_path, client=client)
+        result = literature.PaperFetchTool().run(ctx, paper_id="10.1234/xyz")
+    assert result.ok
+    assert Path(result.data["pdf_path"]).is_file()
+    record = PaperLibrary(ctx.data_dir).get("10.1234/xyz")
+    assert record is not None
+    assert record.local_pdf == result.data["pdf_path"]
+    assert record.title == "DOI OA Paper"
+
+
+def test_paper_fetch_doi_without_oa_is_actionable(tmp_path: Path) -> None:
+    with mock_http(lambda request: json_response({"results": []})) as client:
+        ctx = make_ctx(tmp_path, client=client)
+        result = literature.PaperFetchTool().run(ctx, paper_id="10.1234/no-oa")
+    assert not result.ok
+    assert "Unpaywall" in result.error
+    assert "paper_read" in result.error
+
+
+def test_lit_search_hf_timeout_degrades_to_arxiv(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "huggingface.co" in str(request.url):
+            raise httpx.ConnectTimeout("mock hf timeout", request=request)
+        return text_response(ARXIV_XML)
+
+    with mock_http(handler) as client:
+        ctx = make_ctx(tmp_path, client=client)
+        result = literature.LitSearchTool().run(
+            ctx, query="video", sources=["hf_papers", "arxiv"], limit=5
+        )
+    assert result.ok
+    assert result.data["count"] == 2
+    assert any("hf_papers" in message for message in result.data["errors"])
+
+
+def test_paper_note_metadata_only_fallback(tmp_path: Path) -> None:
+    ctx = make_ctx(tmp_path)
+    library = PaperLibrary(ctx.data_dir)
+    library.add(
+        PaperRecord(
+            id="2401.00001",
+            title="Metadata Only Paper",
+            abstract="We propose a method for video generation.",
+            summary="本文提出一种视频生成方法。",
+            source="daily",
+            pdf_url="https://arxiv.org/pdf/2401.00001",
+        )
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("offline", request=request)
+
+    with mock_http(handler) as client:
+        ctx.extra["http_client"] = client
+        result = paper_reader.PaperNoteTool().run(ctx, paper="2401.00001", llm=False)
+    assert result.ok
+    assert result.data["metadata_only"] is True
+    assert "仅元数据" in result.data["markdown"]
+    assert "本文提出一种视频生成方法" in result.data["markdown"]
+
+
+def test_semantic_scholar_get_single_paper() -> None:
+    payload = {
+        "paperId": "s2paper",
+        "title": "S2 Cited Paper",
+        "url": "https://www.semanticscholar.org/paper/s2paper",
+        "venue": "ICLR",
+        "publicationDate": "2023-09-01",
+        "authors": [{"name": "Zoe Xu"}],
+        "externalIds": {"ArXiv": "2403.00004"},
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "/graph/v1/paper/" in str(request.url)
+        return json_response(payload)
+
+    with mock_http(handler) as client:
+        record = literature.semantic_scholar_get("ARXIV:2403.00004", client=client)
+    assert record is not None
+    assert record.id == "2403.00004"
+    assert record.venue == "ICLR"
+    assert record.authors == ["Zoe Xu"]
+
+
+def test_paper_cite_semantic_scholar_fallback(tmp_path: Path) -> None:
+    payload = {
+        "paperId": "s2paper",
+        "title": "S2 Only Paper",
+        "venue": "ICLR 2024",
+        "publicationDate": "2024-02-02",
+        "authors": [{"name": "Zoe Xu"}],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "semanticscholar.org" in str(request.url)
+        return json_response(payload)
+
+    with mock_http(handler) as client:
+        ctx = make_ctx(tmp_path, client=client)
+        result = literature.PaperCiteTool().run(ctx, papers=["s2paper"])
+    assert result.ok
+    assert result.data["entries"][0]["id"] == "s2paper"
+    assert "S2 Only Paper" in result.content
+    refs = (ctx.project_dir / "references.bib").read_text(encoding="utf-8")
+    assert "@inproceedings{" in refs
 
 
 # ---------------------------------------------------------------------------

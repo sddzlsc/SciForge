@@ -1,0 +1,36 @@
+caption: Ablation study on the routing and consistency objectives.
+label: tab:ablation
+columns:
+- Variant
+- Worst-group Acc.
+- Avg. Acc.
+- Params (M)
+metric_columns:
+- 1
+- 2
+- 3
+higher_is_better:
+  1: true
+  2: true
+  3: false
+rows:
+- - Baseline
+  - 66.0
+  - 78.4
+  - 86.0
+- - + router
+  - 71.6
+  - 79.2
+  - 87.8
+- - + consistency
+  - 69.3
+  - 78.9
+  - 87.2
+- - Ours
+  - 74.1
+  - 79.6
+  - 87.8
+row_groups:
+- label: ImageNet-LT
+  rows: 4
+note: Params counted for the vision backbone only.

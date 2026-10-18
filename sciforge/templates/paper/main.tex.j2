@@ -1,0 +1,41 @@
+% !TEX program = xelatex
+% =============================================================================
+%  {{ title }}  —  {{ venue_label }} 论文工程
+%  由 SciForge 生成。编译：latexmk -xelatex main.tex（或 sciforge write compile）
+%  提示：文中 TODO 处需要替换为真实内容；提交前跑 `sciforge write review` 自检。
+% =============================================================================
+{% include "venues/" ~ venue ~ ".tex.j2" %}
+
+\title{ {{ title_tex }} }
+\author{ {{ authors_tex }} }
+\date{ {{ date }} }
+
+\begin{document}
+\maketitle
+{% if venue == "iclr" %}\thispagestyle{empty}{% endif %}
+
+\begin{abstract}
+\noindent
+% TODO: 用 120-250 词总结：问题、方法、关键结果、意义。不要放引用与公式。
+We study TODO-problem and propose a simple yet effective approach, \ours{}.
+Experiments on TODO-benchmarks show consistent improvements over strong baselines.
+\end{abstract}
+
+{% for section in sections %}
+\input{sections/{{ section.file }}}
+{% endfor %}
+
+% -----------------------------------------------------------------------------
+% References
+% -----------------------------------------------------------------------------
+{% if citation_style == "natbib" %}\bibliographystyle{plainnat}
+{% else %}\bibliographystyle{plain}
+{% endif %}\bibliography{refs}
+
+{% if include_appendix %}
+\appendix
+\section{Appendix}
+\label{app:appendix}
+% TODO: 补充实现细节、额外实验、失败案例等。
+{% endif %}
+\end{document}

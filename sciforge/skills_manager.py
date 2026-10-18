@@ -34,9 +34,10 @@ import subprocess
 import tarfile
 import tempfile
 import zipfile
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import yaml
 

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256.77pt" height="467.43pt"
+     viewBox="0 0 256.77 467.43" role="img">
+  <title>Pre-LN Transformer Block</title>
+  <desc>Pre-LN Transformer Block（由 SciForge figures.arch 生成）</desc>
+  <defs>
+      <marker id="arrow-3B4652" viewBox="0 0 10 10" refX="9.4" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto-start-reverse"><path d="M 0.8 1 L 9.4 5 L 0.8 9 Z" fill="#3B4652"/></marker>
+  </defs>
+  <rect x="0" y="0" width="256.77" height="467.43" fill="#FFFFFF"/>
+  <g font-family="Helvetica Neue, Helvetica, Arial, Noto Sans CJK SC, sans-serif"
+     text-rendering="optimizeLegibility" shape-rendering="geometricPrecision">
+    <text x="128.39" y="21.5" font-size="9.5" fill="#1B1B1B" text-anchor="middle" font-weight="600">Pre-LN Transformer Block</text>
+    <g transform="translate(39.48 31.83)">
+    <rect x="-9" y="44.3" width="139.04" height="138" rx="8" fill="#EEF4F9" stroke="#9BB4CB" stroke-width="0.8" stroke-dasharray="3.2 2.2"/>
+    <rect x="-4" y="36.5" width="77.69" height="10" rx="2.5" fill="#FFFFFF"/>
+    <text x="0.5" y="44.7" font-size="7.2" fill="#3F6B8A" text-anchor="start" font-weight="600">Attention sublayer</text>
+    <rect x="-3.4" y="192.3" width="127.84" height="138" rx="8" fill="#EDF6F1" stroke="#9CC3B2" stroke-width="0.8" stroke-dasharray="3.2 2.2"/>
+    <rect x="1.6" y="184.5" width="95.24" height="10" rx="2.5" fill="#FFFFFF"/>
+    <text x="6.1" y="192.7" font-size="7.2" fill="#2F6B56" text-anchor="start" font-weight="600">Feed-Forward sublayer</text>
+    <path d="M 60.52 33.3 L 60.52 53.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <polygon class="arrowhead" points="60.52,53.3 58.52,48.7 62.52,48.7" fill="#3B4652"/>
+    <path d="M 60.52 81.3 L 60.52 101.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <polygon class="arrowhead" points="60.52,101.3 58.52,96.7 62.52,96.7" fill="#3B4652"/>
+    <path d="M 60.52 129.3 L 60.52 149.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <polygon class="arrowhead" points="60.52,149.3 58.52,144.7 62.52,144.7" fill="#3B4652"/>
+    <path d="M 60.52 173.3 L 60.52 201.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <polygon class="arrowhead" points="60.52,201.3 58.52,196.7 62.52,196.7" fill="#3B4652"/>
+    <path d="M 60.52 229.3 L 60.52 249.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <polygon class="arrowhead" points="60.52,249.3 58.52,244.7 62.52,244.7" fill="#3B4652"/>
+    <path d="M 60.52 277.3 L 60.52 297.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <polygon class="arrowhead" points="60.52,297.3 58.52,292.7 62.52,292.7" fill="#3B4652"/>
+    <path d="M 60.52 321.3 L 60.52 341.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <polygon class="arrowhead" points="60.52,341.3 58.52,336.7 62.52,336.7" fill="#3B4652"/>
+    <path d="M 99.52 16.65 L 151.04 16.65 Q 156.04 16.65 156.04 21.65 L 156.04 152.8 Q 156.04 157.8 151.04 157.8 L 80.52 157.8" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3.2 2.4" marker-end="url(#arrow-3B4652)"/>
+    <polygon class="arrowhead" points="80.52,157.8 85.12,155.8 85.12,159.8" fill="#3B4652"/>
+    <path d="M 80.52 164.8 L 165.04 164.8 Q 170.04 164.8 170.04 169.8 L 170.04 304.3 Q 170.04 309.3 165.04 309.3 L 80.52 309.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3.2 2.4" marker-end="url(#arrow-3B4652)"/>
+    <polygon class="arrowhead" points="80.52,309.3 85.12,307.3 85.12,311.3" fill="#3B4652"/>
+    <rect x="21.52" y="0" width="78" height="33.3" rx="16.65" fill="#E3F2EB" stroke="#009E73" stroke-width="0.9"/>
+    <text x="60.52" y="14.44" font-size="8" fill="#0B4D3A" text-anchor="middle" font-weight="600">x</text>
+    <text x="60.52" y="24.27" font-size="7" fill="#444C56" text-anchor="middle">(B, N, D)</text>
+    <rect x="17.52" y="53.3" width="86" height="28" rx="5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.9"/>
+    <text x="60.52" y="69.86" font-size="8" fill="#123A57" text-anchor="middle" font-weight="600">LayerNorm</text>
+    <rect x="0" y="101.3" width="121.04" height="28" rx="5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.9"/>
+    <text x="60.52" y="117.86" font-size="8" fill="#123A57" text-anchor="middle" font-weight="600">Multi-Head Self-Attention</text>
+    <rect x="40.52" y="149.3" width="40" height="24" rx="5" fill="#FFFFFF" stroke="#4B5563" stroke-width="0.9"/>
+    <text x="60.52" y="164.34" font-size="9.5" fill="#1B1B1B" text-anchor="middle" font-weight="600">⊕</text>
+    <rect x="17.52" y="201.3" width="86" height="28" rx="5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.9"/>
+    <text x="60.52" y="217.86" font-size="8" fill="#123A57" text-anchor="middle" font-weight="600">LayerNorm</text>
+    <rect x="5.6" y="249.3" width="109.84" height="28" rx="5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.9"/>
+    <text x="60.52" y="265.86" font-size="8" fill="#123A57" text-anchor="middle" font-weight="600">Feed-Forward Network</text>
+    <rect x="40.52" y="297.3" width="40" height="24" rx="5" fill="#FFFFFF" stroke="#4B5563" stroke-width="0.9"/>
+    <text x="60.52" y="312.34" font-size="9.5" fill="#1B1B1B" text-anchor="middle" font-weight="600">⊕</text>
+    <rect x="21.52" y="341.3" width="78" height="33.3" rx="16.65" fill="#E3F2EB" stroke="#009E73" stroke-width="0.9"/>
+    <text x="60.52" y="355.74" font-size="8" fill="#0B4D3A" text-anchor="middle" font-weight="600">x&apos;</text>
+    <text x="60.52" y="365.57" font-size="7" fill="#444C56" text-anchor="middle">(B, N, D)</text>
+    <text x="60.52" y="401.68" font-size="6.5" fill="#6B7280" text-anchor="middle">N: sequence length   D: hidden dim</text>
+    
+    
+    
+    
+    
+    
+    
+    <rect x="139.25" y="91.22" width="33.57" height="11" rx="2.5" fill="#FFFFFF" opacity="0.97"/>
+    <text x="156.04" y="99.12" font-size="6.5" fill="#444C56" text-anchor="middle">residual</text>
+    <rect x="153.25" y="231.55" width="33.57" height="11" rx="2.5" fill="#FFFFFF" opacity="0.97"/>
+    <text x="170.04" y="239.45" font-size="6.5" fill="#444C56" text-anchor="middle">residual</text>
+    </g>
+    
+    <rect x="18.5" y="445.43" width="13" height="9" rx="2.5" fill="#E3F2EB" stroke="#009E73" stroke-width="0.8"/>
+    <text x="35.5" y="452.03" font-size="6.5" fill="#444C56">Input / Output</text>
+    <rect x="94.72" y="445.43" width="13" height="9" rx="2.5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.8"/>
+    <text x="111.72" y="452.03" font-size="6.5" fill="#444C56">Module</text>
+    <rect x="146.03" y="445.43" width="13" height="9" rx="2.5" fill="#FFFFFF" stroke="#4B5563" stroke-width="0.8"/>
+    <text x="163.03" y="452.03" font-size="6.5" fill="#444C56">Operation</text>
+    <rect x="206.52" y="445.43" width="13" height="9" rx="2.5" fill="#FFFFFF" stroke="#AEB9C6" stroke-width="0.8"/>
+    <text x="223.52" y="452.03" font-size="6.5" fill="#444C56">Note</text>
+  </g>
+</svg>

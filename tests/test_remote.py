@@ -873,6 +873,52 @@ def test_cli_gpu_status_local(monkeypatch, tmp_path) -> None:
     assert payload["available"] is False
 
 
+def test_check_exposes_ok_for_doctor(executor: SSHExecutor) -> None:
+    runner = FakeRunner(lambda argv, timeout: RemoteResult(0, CHECK_SAMPLE))
+    info = SSHExecutor(executor.server, runner=runner).check()
+    assert info["ok"] is True
+    assert info["reachable"] is True
+
+
+def test_cli_ssh_sync(monkeypatch, tmp_path) -> None:
+    home = tmp_path / "home-sync"
+    home.mkdir()
+    (home / "config.toml").write_text(
+        '[[servers]]\nname = "gpu1"\nhost = "1.2.3.4"\nuser = "root"\nworkdir = "~/sciforge"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SCIFORGE_HOME", str(home))
+    monkeypatch.chdir(tmp_path)
+    captured = {}
+
+    def fake_upload(self, paths, remote_dir, *, delete=False, excludes=None, timeout=1800):
+        captured.update(paths=[str(path) for path in paths], remote_dir=remote_dir, excludes=excludes)
+        return RemoteResult(0, "sent 12 bytes")
+
+    monkeypatch.setattr(remote.SSHExecutor, "upload_paths", fake_upload)
+    local_dir = tmp_path / "code"
+    local_dir.mkdir()
+    (local_dir / "train.py").write_text("print(1)")
+    app = typer.Typer()
+    remote.add_cli(app)
+    result = CliRunner().invoke(
+        app,
+        ["ssh", "sync", "gpu1", str(local_dir), "./sciforge", "--exclude", "data", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["ok"] is True
+    assert captured["paths"][0] == str(local_dir) + "/"
+    assert captured["remote_dir"] == "./sciforge"
+    assert captured["excludes"] == ["data"]
+
+
+def test_gpu_status_explicit_unknown_server_fails(ctx_no_server: ToolContext) -> None:
+    result = remote.GpuStatusTool().run(ctx_no_server, server="gpu1")
+    assert result.ok is False
+    assert "未找到服务器" in result.content
+
+
 def test_cli_ssh_exec_dangerous(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("SCIFORGE_HOME", str(tmp_path / "home"))
     monkeypatch.chdir(tmp_path)

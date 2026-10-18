@@ -1,0 +1,32 @@
+kind: heatmap
+title: Confusion matrix
+matrix:
+- - 92
+  - 3
+  - 2
+  - 3
+- - 4
+  - 88
+  - 6
+  - 2
+- - 2
+  - 5
+  - 90
+  - 3
+- - 1
+  - 2
+  - 4
+  - 93
+xticklabels:
+- A
+- B
+- C
+- D
+yticklabels:
+- A
+- B
+- C
+- D
+xlabel: Predicted
+ylabel: 'True'
+colorbar_label: '%'

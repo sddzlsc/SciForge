@@ -41,7 +41,7 @@ from sciforge.tools.experiments import (
     sweep_experiments,
 )
 
-TEMPLATE_NAMES = ["cv-classification", "nlp-finetune", "llm-sft", "generic"]
+TEMPLATE_NAMES = ["cv-classification", "generic", "llm-sft", "nlp-finetune"]
 
 
 # ---------------------------------------------------------------------------
@@ -139,15 +139,22 @@ def _write_project_script(project: Path) -> None:
     scripts = project / "scripts"
     scripts.mkdir(parents=True, exist_ok=True)
     script = scripts / "run.sh"
+    metrics = {
+        "epochs": [
+            {"epoch": 1, "train_loss": 0.9, "val_loss": 0.8, "val_acc": 0.55},
+            {"epoch": 2, "train_loss": 0.5, "val_loss": 0.4, "val_acc": 0.70},
+        ],
+        "best": {"epoch": 2, "val_acc": 0.70},
+    }
+    payload = json.dumps(metrics, ensure_ascii=False)
     script.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
         'OUT="${SCIFORGE_RUN_DIR:-runs/manual}"\n'
         'mkdir -p "$OUT"\n'
-        "printf '%s' '
-{\"epochs\": [{\"epoch\": 1, \"train_loss\": 0.9, \"val_loss\": 0.8, \"val_acc\": 0.55}, "
-{\"epoch\": 2, \"train_loss\": 0.5, \"val_loss\": 0.4, \"val_acc\": 0.70}], "
-\"best\": {\"epoch\": 2, \"val_acc\": 0.70}}' > \"$OUT/metrics.json\"\n"
+        "cat > \"$OUT/metrics.json\" <<'METRICS'\n"
+        f"{payload}\n"
+        "METRICS\n"
         'echo "training finished"\n',
         encoding="utf-8",
     )
@@ -203,11 +210,10 @@ def test_scaffold_generates_expected_files(template: str, tmp_path) -> None:
         target = dest / relative
         assert target.exists(), f"{template} 缺少 {relative}"
     assert info["smoke_command"] == "bash scripts/smoke.sh"
-    # Jinja 占位符必须全部渲染
-    for relative in expected:
+    # Jinja 占位符必须全部渲染（只有 .j2 模板文件会被渲染）
+    for relative in ("README.md", "configs/default.yaml"):
         path = dest / relative
-        if path.suffix in (".md", ".yaml", ".py", ".sh", ".json"):
-            assert "{{" not in path.read_text(encoding="utf-8"), f"{relative} 未渲染"
+        assert "{{" not in path.read_text(encoding="utf-8"), f"{relative} 未渲染"
     readme = (dest / "README.md").read_text(encoding="utf-8")
     assert "demo-exp" in readme
     assert "dummy-data" in readme
@@ -401,6 +407,9 @@ def test_normalize_metrics_and_table_and_curves() -> None:
     curves = build_curve_data("r1", canonical["history"])
     assert curves["run_id"] == "r1"
     assert curves["x"] == [1, 2]
+    # 与 T3 figure_plot 的 spec 兼容
+    assert curves["kind"] == "line"
+    assert curves["xlabel"] == "epoch"
     names = {series["name"] for series in curves["series"]}
     assert {"train_loss", "val_loss", "val_acc"} <= names
     for series in curves["series"]:
@@ -489,6 +498,30 @@ def test_launch_local_end_to_end(ctx: ToolContext, project: Path) -> None:
     assert len(results.artifacts) == 3
 
 
+def test_launch_local_smoke_mode_scaffolded_template(ctx: ToolContext) -> None:
+    """真实 scaffold 出来的项目用 --smoke 本地启动，验证 launch→refresh→results 链路。"""
+    dest = ctx.project_dir / "experiments" / "smoke-cv"
+    scaffold_experiment(dest, template="cv-classification", name="smoke-cv")
+    record = launch_experiment(
+        ctx, local=True, sync=False, exp_dir=dest, name="cv-smoke", smoke=True
+    )
+    assert record.command == "bash scripts/smoke.sh"
+    assert record.status == "running"
+
+    def finished() -> bool:
+        refreshed = refresh_record(ctx, load_run(ctx.project_dir, record.run_id))
+        return refreshed is not None and refreshed.status in ("done", "failed")
+
+    assert _wait_until(finished, timeout=30), "smoke 实验未在 30s 内结束"
+    stored = load_run(ctx.project_dir, record.run_id)
+    assert stored is not None
+    assert stored.status == "done", (stored.error, stored.notes)
+    assert stored.template == "cv-classification"
+    info = collect_results(ctx, run_id=record.run_id)
+    assert info["num_epochs"] >= 1
+    assert (ctx.project_dir / "results" / record.run_id / "table.md").exists()
+
+
 def test_launch_remote_mocked(ctx: ToolContext, project: Path, monkeypatch) -> None:
     fake = FakeExecutor()
     monkeypatch.setattr(remote, "make_executor", lambda server=None, local=False, workdir=None: fake)
@@ -538,6 +571,12 @@ def test_launch_remote_slurm_mocked(project: Path, tmp_path, monkeypatch) -> Non
     assert fake.submit_calls, "应调用 submit_slurm"
     assert "#SBATCH --partition=gpu" in fake.submit_calls[0]["script"]
     assert "#SBATCH --gres=gpu:a100:1" in fake.submit_calls[0]["script"]
+
+
+def test_script_launch_command_picks_interpreter() -> None:
+    assert experiments._script_launch_command("train.py") == "python train.py"
+    assert experiments._script_launch_command("scripts/run.sh") == "bash scripts/run.sh"
+    assert experiments._script_launch_command("scripts/train") == "bash scripts/train"
 
 
 def test_launch_without_server_fails_with_hint(ctx_no_server: ToolContext, project: Path) -> None:
@@ -694,7 +733,7 @@ def test_exp_status_tool_lists_runs(ctx: ToolContext, project: Path) -> None:
 
 
 def test_exp_stop_tool_updates_status(ctx: ToolContext, project: Path, monkeypatch) -> None:
-    record = RunRecord(run_id="20260101-000000-stop", status="running", job_id="sciforge:x")
+    record = RunRecord(run_id="20260101-000000-stop", server="gpu1", status="running", job_id="sciforge:x")
     record.save(project)
 
     monkeypatch.setattr(remote.SSHExecutor, "kill_job", lambda self, job_id, kind="auto", timeout=30: remote.RemoteResult(0, "killed"))
@@ -750,6 +789,63 @@ def test_cli_exp_results_and_status(monkeypatch, tmp_path, ctx: ToolContext) -> 
     results = runner.invoke(app, ["exp", "results", run_id, "--json"])
     assert results.exit_code == 0, results.output
     assert (ctx.project_dir / "results" / run_id / "table.md").exists()
+
+
+def test_cli_exp_logs_tail_alias(monkeypatch, tmp_path, ctx: ToolContext) -> None:
+    monkeypatch.setenv("SCIFORGE_HOME", str(tmp_path / "home-logs"))
+    monkeypatch.chdir(ctx.project_dir)
+    run_id = "20260103-000000-logs"
+    run_dir = ctx.project_dir / "runs" / run_id
+    run_dir.mkdir(parents=True)
+    RunRecord(
+        run_id=run_id,
+        status="running",
+        log_path=str(run_dir / "train.log"),
+    ).save(ctx.project_dir)
+    (run_dir / "train.log").write_text("epoch 1\nepoch 2\ntraining finished\n", encoding="utf-8")
+    app = typer.Typer()
+    experiments.add_cli(app)
+    result = CliRunner().invoke(app, ["exp", "logs", run_id, "--tail", "2", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert "training finished" in payload["content"]
+    assert payload["inferred_status"] == "done"
+
+
+def test_cli_exp_results_multi_run_with_out(monkeypatch, tmp_path, ctx: ToolContext) -> None:
+    monkeypatch.setenv("SCIFORGE_HOME", str(tmp_path / "home-results"))
+    monkeypatch.chdir(ctx.project_dir)
+    for index in (1, 2):
+        run_id = f"20260104-00000{index}-multi"
+        run_dir = ctx.project_dir / "runs" / run_id
+        run_dir.mkdir(parents=True)
+        RunRecord(run_id=run_id, status="running").save(ctx.project_dir)
+        (run_dir / "metrics.json").write_text(
+            json.dumps(
+                {"epochs": [{"epoch": 1, "val_acc": 0.5 + index / 10}], "best": {"val_acc": 0.5 + index / 10}}
+            ),
+            encoding="utf-8",
+        )
+    app = typer.Typer()
+    experiments.add_cli(app)
+    result = CliRunner().invoke(
+        app,
+        [
+            "exp",
+            "results",
+            "20260104-000001-multi",
+            "20260104-000002-multi",
+            "--out",
+            "custom-results",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["ok"] is True
+    assert len(payload["runs"]) == 2
+    assert (ctx.project_dir / "custom-results" / "20260104-000001-multi" / "table.md").exists()
+    assert (ctx.project_dir / "custom-results" / "20260104-000002-multi" / "curves.json").exists()
 
 
 def test_local_executor_used_when_no_server(ctx_no_server: ToolContext, project: Path) -> None:

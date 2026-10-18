@@ -78,7 +78,7 @@ def run_smoke(args: argparse.Namespace, config: dict[str, Any]) -> dict[str, Any
     samples = [
         (
             [random.gauss(0, 1) for _ in range(num_features)],
-            max(range(num_classes), key=lambda c: sum(w * x for w, x in zip(weights[c], xs))),
+            max(range(num_classes), key=lambda c: sum(w * x for w, x in zip(weights[c], xs, strict=False))),
         )
         for xs in ([random.gauss(0, 1) for _ in range(num_features)] for _ in range(num_samples))
     ]

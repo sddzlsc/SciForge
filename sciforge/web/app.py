@@ -25,17 +25,19 @@ import re
 import threading
 import time
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from sciforge.config import Settings, ensure_dirs, find_project_root, get_settings
-from sciforge.core.events import EventBus, Event
+from sciforge.core.events import Event, EventBus
+from sciforge.core.types import LLMResponse, ToolCall, Usage
 
 WEB_DIR = Path(__file__).resolve().parent
 STATIC_DIR = WEB_DIR / "static"
@@ -49,8 +51,9 @@ GPU_PROBE_TIMEOUT = float(os.environ.get("SCIFORGE_WEB_GPU_TIMEOUT", "15"))
 #: SSE 心跳间隔（秒），防止反向代理断开空闲连接。
 SSE_HEARTBEAT_SECONDS = 15.0
 
-_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".pdf"}
-_ARTIFACT_EXTS = _IMAGE_EXTS | {".md", ".txt", ".json", ".csv", ".yaml", ".yml", ".bib", ".tex", ".py"}
+_GALLERY_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif"}
+_DOWNLOAD_EXTS = _GALLERY_EXTS | {".pdf"}
+_ARTIFACT_EXTS = _DOWNLOAD_EXTS | {".md", ".txt", ".json", ".csv", ".yaml", ".yml", ".bib", ".tex", ".py"}
 _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _CSP = (
     "default-src 'self'; "
@@ -75,6 +78,9 @@ class ChatRequest(BaseModel):
     mock: bool | None = None
     session_id: str | None = None
     max_steps: int | None = Field(default=None, ge=1, le=100)
+    # 仅 mock 模式生效：用脚本 router 让 Agent 真实执行一次只读工具，
+    # 以便无 API key 时演示「工具调用折叠卡片」；不伪造事件，工具确实被执行。
+    demo_tools: bool = False
 
 
 class PipelineRunRequest(BaseModel):
@@ -525,6 +531,76 @@ def _scan_bundled_skills() -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# 离线「工具演示」router
+# ---------------------------------------------------------------------------
+
+
+class _DemoToolRouter:
+    """仅在 ``mock=true & demo_tools=true`` 时启用的脚本 router。
+
+    目的：没有 API key 时也能在 Web 端演示「工具调用折叠卡片」。这里**不伪造**
+    tool 事件——第 1 步让 AgentLoop 真实调用一次只读工具（read_file / list_dir），
+    第 2 步据真实工具结果生成总结；EventBus 上的 tool_call / tool_result 由
+    AgentLoop 按正常流程发出。
+    """
+
+    def __init__(self, project_dir: Path) -> None:
+        self.project_dir = project_dir
+        self.usage = Usage()
+        self._step = 0
+        self._tool_name, self._arguments = self._pick_plan()
+
+    def _pick_plan(self) -> tuple[str, dict[str, Any]]:
+        candidates: list[tuple[str, dict[str, Any]]] = [
+            (
+                "examples/demo/fixtures/paper.txt",
+                {"path": "examples/demo/fixtures/paper.txt", "offset": 1, "limit": 26},
+            ),
+            (
+                "examples/demo/fixtures/arch_spec.yaml",
+                {"path": "examples/demo/fixtures/arch_spec.yaml", "offset": 1, "limit": 24},
+            ),
+            ("README.md", {"path": "README.md", "offset": 1, "limit": 30}),
+        ]
+        for relative, arguments in candidates:
+            if (self.project_dir / relative).is_file():
+                return "read_file", arguments
+        return "list_dir", {"path": ".", "depth": 2}
+
+    def chat(self, role: str, messages: list[Any], **kwargs: Any) -> LLMResponse:
+        self._step += 1
+        if self._step == 1:
+            call = ToolCall(
+                id=f"demo-{uuid.uuid4().hex[:8]}",
+                name=self._tool_name,
+                arguments=dict(self._arguments),
+            )
+            usage = Usage(prompt_tokens=64, completion_tokens=32, total_tokens=96, calls=1)
+            self.usage.add(usage)
+            return LLMResponse(
+                content="为了演示工具调用卡片，我先读取一个离线 demo fixture 文件。",
+                tool_calls=[call],
+                usage=usage,
+                model="demo-tool-router",
+            )
+
+        tool_messages = [message for message in messages if getattr(message, "role", "") == "tool"]
+        preview = str(getattr(tool_messages[-1], "content", "")) if tool_messages else ""
+        body = (
+            "## 🧰 工具调用演示（离线 · 真实执行）\n\n"
+            f"Agent 真实调用了 `{self._tool_name}`，参数 "
+            f"`{json.dumps(self._arguments, ensure_ascii=False)}`。"
+            "参数、结果预览与耗时都在上方可折叠卡片里，点击卡片展开查看。\n\n"
+            "> 说明：这是显式的 demo 路径——工具确实被执行（只读），只是 LLM 侧用脚本"
+            "替代，以便在没有 API key 时展示 Web 控制台的工具调用视觉。\n\n"
+            f"### 工具返回预览（{self._tool_name}）\n\n```\n{preview[:900]}\n```\n"
+        )
+        usage = Usage(prompt_tokens=128, completion_tokens=96, total_tokens=224, calls=1)
+        self.usage.add(usage)
+        return LLMResponse(content=body, tool_calls=[], usage=usage, model="demo-tool-router")
+
+
+# ---------------------------------------------------------------------------
 # App 工厂
 # ---------------------------------------------------------------------------
 
@@ -707,14 +783,22 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                 history = list(stored.get("messages") or [])
 
         def worker() -> None:
+            started_at = time.monotonic()
             try:
                 from sciforge.agent.runtime import make_agent
 
+                demo_router = None
+                if req.demo_tools and mock:
+                    try:
+                        demo_router = _DemoToolRouter(project_dir)
+                    except Exception:  # noqa: BLE001 - demo 不可用时退回普通 mock
+                        demo_router = None
                 agent, _ctx, _router = make_agent(
                     settings,
                     project_dir=project_dir,
                     session_id=session_id,
                     bus=bus,
+                    router=demo_router,
                     mock=mock,
                     stream=True,
                     max_steps=req.max_steps,
@@ -732,6 +816,7 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                     "content": result.content,
                     "artifacts": _rel_artifacts(project_dir, result.artifacts),
                     "error": result.error,
+                    "duration": round(time.monotonic() - started_at, 2),
                 }
                 event_queue.put({"kind": "done", "payload": done_payload})
             except Exception as exc:  # noqa: BLE001 - 任何失败都要让前端收到明确错误
@@ -759,6 +844,7 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                 {
                     "session_id": session_id,
                     "mock": mock,
+                    "demo_tools": bool(req.demo_tools and mock),
                     "mock_reason": _mock_reason(settings, req.mock, mock),
                     "project_dir": str(project_dir),
                 },
@@ -883,6 +969,15 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             tool_error = "未提供查询词"
 
         papers = _load_fixture_papers(query, limit)
+        if query:
+            notice = "当前展示的是 examples/demo/fixtures 中的离线演示数据"
+            if tool_error:
+                notice += f"（真实检索不可用：{tool_error}）"
+        else:
+            notice = (
+                "当前展示的是 examples/demo/fixtures 中的离线演示数据："
+                "9 篇 arXiv 真实论文元数据 + 3 条 daily-arXiv-ai-enhanced 中文速览"
+            )
         return {
             "ok": True,
             "available": False,
@@ -891,10 +986,7 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "query": query,
             "total": len(papers),
             "papers": papers,
-            "notice": (
-                "当前展示的是 examples/demo/fixtures 中的离线演示数据"
-                + (f"（真实检索不可用：{tool_error}）" if tool_error else "")
-            ),
+            "notice": notice,
         }
 
     @app.post("/api/library/add")
@@ -953,7 +1045,7 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                     "error": "精读工具（T1 paper_read）尚未注册；可在对话页发送「精读这篇论文：<标题>」走 Agent 流程",
                 }
             ctx = make_ctx(settings, project_dir=project_dir, session_id=f"web-read-{uuid.uuid4().hex[:8]}")
-            result = run_tool("paper_read", ctx, {"target": target})
+            result = run_tool("paper_read", ctx, {"paper": target})
             return {
                 "ok": bool(result.ok),
                 "available": True,
@@ -1262,7 +1354,7 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                 return
             seen.add(rel)
             suffix = path.suffix.lower()
-            previewable = suffix in _IMAGE_EXTS
+            previewable = suffix in _GALLERY_EXTS
             url = f"/figures/{quote(rel)}" if previewable else f"/files/{quote(rel)}"
             items.append(
                 {
@@ -1298,7 +1390,7 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                     rel = _rel_posix(project_dir, path)
                     if rel:
                         suffix = path.suffix.lower()
-                        previewable = suffix in _IMAGE_EXTS
+                        previewable = suffix in _GALLERY_EXTS
                         fixtures.append(
                             {
                                 "path": rel,
@@ -1327,7 +1419,7 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
     @app.get("/figures/{path:path}")
     def api_figure(path: str):  # noqa: ANN202
         target = _safe_join(project_dir, path)
-        if target.suffix.lower() not in _IMAGE_EXTS:
+        if target.suffix.lower() not in _GALLERY_EXTS:
             raise HTTPException(status_code=404, detail="不是可预览的图文件")
         media = "image/svg+xml" if target.suffix.lower() == ".svg" else None
         return FileResponse(target, media_type=media, headers={"Cache-Control": "no-store"})

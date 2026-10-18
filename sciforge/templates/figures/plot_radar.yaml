@@ -1,0 +1,22 @@
+kind: radar
+categories:
+- Acc
+- Robust
+- Calib
+- Efficiency
+- Fairness
+series:
+- label: Baseline
+  values:
+  - 0.62
+  - 0.48
+  - 0.55
+  - 0.78
+  - 0.45
+- label: Ours
+  values:
+  - 0.74
+  - 0.71
+  - 0.68
+  - 0.69
+  - 0.72

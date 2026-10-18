@@ -1,0 +1,98 @@
+title: Multimodal Contrastive Learning Pipeline
+direction: horizontal
+width: 520
+nodes:
+- id: img
+  label: Image
+  sub: B × 3 × H × W
+  kind: data
+  row: 0
+  col: 0
+  group: vis
+- id: vit
+  label: Vision Encoder
+  sub: ViT-B/16 · 12 layers
+  kind: module
+  row: 0
+  col: 1
+  group: vis
+- id: zv
+  label: 'z_v : B × D'
+  kind: tensor
+  row: 0
+  col: 2
+  group: vis
+- id: txt
+  label: Text
+  sub: B × L
+  kind: data
+  row: 0
+  col: 0
+  group: txt
+- id: tenc
+  label: Text Encoder
+  sub: frozen · 12 layers
+  kind: module
+  row: 0
+  col: 1
+  dashed: true
+  group: txt
+- id: zt
+  label: 'z_t : B × D'
+  kind: tensor
+  row: 0
+  col: 2
+  group: txt
+- id: sim
+  label: Cosine Similarity
+  sub: B × B affinity
+  kind: module
+  row: 0
+  col: 0
+  accent: true
+  group: obj
+- id: loss
+  label: InfoNCE Loss
+  kind: loss
+  row: 1
+  col: 0
+  group: obj
+- id: note1
+  label: D = 512   τ = 0.07   B = batch size
+  kind: note
+  row: 2
+  col: 0
+  span: all
+groups:
+- id: vis
+  label: Visual encoding
+  row: 0
+  col: 0
+  color: blue
+- id: txt
+  label: Text encoding
+  row: 1
+  col: 0
+  color: green
+- id: obj
+  label: Alignment objective
+  row: 0
+  col: 3
+  color: orange
+edges:
+- from: img
+  to: vit
+- from: vit
+  to: zv
+- from: txt
+  to: tenc
+- from: tenc
+  to: zt
+- from: zv
+  to: sim
+- from: zt
+  to: sim
+- from: sim
+  to: loss
+  label: logits
+legend: true

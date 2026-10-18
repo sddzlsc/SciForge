@@ -29,13 +29,13 @@ metadata:
 3. **按任务选命令**（优先 CLI，确定性、可复现）：
    - 文献：`sciforge lit search "..." --source arxiv --limit 30`、`sciforge lit daily --category cs.CV`、`sciforge read <arxiv-id> --note`
    - 每日速览：`sciforge skills show daily-arxiv-digest`
-   - 创新点：`sciforge idea --topic "..." --from-library`
+   - 创新点：`sciforge idea generate "<topic>" --context notes/survey.md`
    - 远程 GPU：`sciforge ssh test gpu1`、`sciforge gpu status gpu1`、`sciforge exp launch --server gpu1 --script train.py`
    - 实验：`sciforge exp scaffold --template cv-classification --name exp1`、`exp status/logs/results`
    - 配图：`sciforge fig arch --spec figures/arch.yaml -o figures/arch.svg`、`sciforge fig plot --spec curves.yaml`
-   - 写作：`sciforge write draft --venue cvpr`、`write section`、`write compile`、`write review`
+   - 写作：`sciforge write draft --venue cvpr --title "..." --authors "..."`、`sciforge write section --name 03_method --content-file sections/method.tex`、`write compile`、`write review`
    - 全流程：`sciforge pipeline run --recipe full --topic "..." [--mock]`
-   - 演示/服务：`sciforge demo --offline`、`sciforge serve --port 8765`
+   - 演示/服务：`sciforge demo`（默认离线）、`sciforge serve --port 8765`
 4. **工具箱 vs CLI**：宿主已加载 SciForge tools（`lit_search`/`paper_read`/`remote_run`/`figure_architecture`…）时，对话内直接调用工具，适合多步交互；需要确定性产物/批处理/CI 时用 CLI 子命令。两者共享同一套配置与库。
 5. **项目约定**：文献笔记 `notes/`、实验 `experiments/<hypothesis>/`、原始结果 `results/`、图 `figures/`、论文 `paper/`；跨会话续跑用 `research-state.yaml` + `findings.md` + `research-log.md`（见 `autoresearch-loop` skill）。
 6. **验收**：每个阶段检查产物存在且内容完整（不是占位符）；失败按下方降级方案处理，不阻塞整条流水线。
@@ -72,7 +72,7 @@ metadata:
 | 远程/GPU | `sciforge ssh/gpu` | `remote_run`、`gpu_status`、`remote_sync` |
 | 实验 | `sciforge exp ...` | `exp_scaffold`、`exp_launch`、`exp_results` |
 | 配图 | `sciforge fig ...` | `figure_architecture`、`figure_plot`、`figure_table` |
-| 写作 | `sciforge write ...` | `paper_section`、`paper_cite`、`paper_compile`、`paper_review` |
+| 写作 | `sciforge write ...` | `paper_init`、`paper_section`、`citation_add`、`paper_compile`、`paper_review` |
 | Skill 管理 | `sciforge skills list/search/install-dsh` | `skill_list`、`skill_load`、`skill_search` |
 
 ## 示例
@@ -82,7 +82,7 @@ sciforge doctor
 sciforge init survey-demo --topic "长视频扩散模型"
 sciforge lit search "long video diffusion" --source arxiv --limit 20
 sciforge read 2401.00001 --note
-sciforge idea --topic "长视频扩散模型" --from-library
+sciforge idea generate "长视频扩散模型" --context notes/survey.md
 sciforge exp scaffold --template cv-classification --name exp1
 sciforge fig arch --spec figures/arch.yaml -o figures/arch.svg
 sciforge write draft --venue cvpr

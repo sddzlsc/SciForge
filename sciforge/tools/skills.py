@@ -22,7 +22,6 @@ CLI（``sciforge skills ...``，由 cli.py 调 :func:`add_cli` / :func:`register
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import typer
@@ -30,10 +29,8 @@ import typer
 from sciforge.core.registry import BaseTool, ToolContext, ToolResult, register_tool
 from sciforge.skills_manager import (
     SkillError,
-    SkillInstallError,
     SkillManager,
     SkillMeta,
-    SkillNotFoundError,
 )
 
 CONTENT_LIMIT = 12000
@@ -497,7 +494,3 @@ __all__ = [
     "SkillInstallTool",
     "SkillLintTool",
 ]
-
-
-# 明确不注册的“死代码”防护：Path 仅用于类型标注
-_ = Path

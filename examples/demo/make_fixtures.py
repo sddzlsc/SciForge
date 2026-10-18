@@ -25,6 +25,7 @@ from typing import Any
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 PAPER_PDF = FIXTURES_DIR / "paper.pdf"
 PAPER_TXT = FIXTURES_DIR / "paper.txt"
+PAPER_PREVIEW_PNG = FIXTURES_DIR / "paper_preview.png"
 
 TITLE = "Adaptive Token Routing for Efficient Video Diffusion Transformers"
 AUTHORS = "Lin Chen, Yuki Tanaka, Minghao Zhou, Elena Petrova"
@@ -444,6 +445,21 @@ def build_pdf(path: Path) -> None:
     writer.save(path)
 
 
+def build_paper_preview(path: Path, scale: float = 1.5) -> None:
+    """把 paper.pdf 第 1 页渲染成 PNG 缩略图，供 Web 图表页离线预览。"""
+    try:
+        import pymupdf  # type: ignore[import-not-found]
+    except ImportError:  # pragma: no cover
+        return
+    doc = pymupdf.open(str(PAPER_PDF))
+    try:
+        page = doc[0]
+        pixmap = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
+        pixmap.save(str(path))
+    finally:
+        doc.close()
+
+
 # ---------------------------------------------------------------------------
 # 入口
 # ---------------------------------------------------------------------------
@@ -511,10 +527,13 @@ def main() -> int:
     if not args.check:
         build_pdf(PAPER_PDF)
         PAPER_TXT.write_text(build_text(), encoding="utf-8")
+        build_paper_preview(PAPER_PREVIEW_PNG)
         print(f"  ✓ paper.pdf: {PAPER_PDF.stat().st_size / 1024:.1f} KB")
         print(f"  ✓ paper.txt: {PAPER_TXT.stat().st_size / 1024:.1f} KB")
+        if PAPER_PREVIEW_PNG.is_file():
+            print(f"  ✓ paper_preview.png: {PAPER_PREVIEW_PNG.stat().st_size / 1024:.1f} KB")
     else:
-        for name in ("paper.pdf", "paper.txt"):
+        for name in ("paper.pdf", "paper.txt", "paper_preview.png"):
             path = FIXTURES_DIR / name
             print(f"  {'✓' if path.is_file() else '✗'} {name}: "
                   f"{path.stat().st_size / 1024:.1f} KB" if path.is_file() else f"  ✗ 缺少 {name}")

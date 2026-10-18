@@ -1,0 +1,36 @@
+% =============================================================================
+% Section 3: Method（先给整体框架图，再按模块展开；公式要编号并解释符号）
+% TODO: 画出方法总览图，例如：
+%   sciforge fig arch --spec figures/fig1.yaml -o figures/fig1.pdf
+% 然后取消下面的 figure 注释并把 caption 写清楚（self-contained）。
+% =============================================================================
+\section{Method}
+\label{sec:method}
+
+% \begin{figure}[t]
+%   \centering
+%   \includegraphics[width=\linewidth]{figures/fig1.pdf}
+%   \caption{Overview of \ours{}. TODO: 说明输入、关键模块与输出，做到不看正文也能理解。}
+%   \label{fig:pipeline}
+% \end{figure}
+
+\subsection{Overview}
+\label{sec:method-overview}
+Given an input $x \in \R^{d}$, \ours{} produces TODO. The overall pipeline is illustrated in Figure~\ref{fig:pipeline}.
+
+\subsection{TODO Module Name}
+\label{sec:method-module}
+TODO: 定义符号、公式与直觉解释。
+\begin{equation}
+  \label{eq:main}
+  \hat{y} = f_\theta(x) = \mathrm{TODO}(x; \theta).
+\end{equation}
+TODO: 说明式~\eqref{eq:main} 中每个符号的含义与复杂度。
+
+\subsection{Training Objective}
+\label{sec:method-objective}
+\begin{equation}
+  \label{eq:loss}
+  \mathcal{L} = \mathcal{L}_{\mathrm{task}} + \lambda \, \mathcal{L}_{\mathrm{reg}},
+\end{equation}
+where $\lambda$ is TODO and $\mathcal{L}_{\mathrm{reg}}$ encourages TODO.

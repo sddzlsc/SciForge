@@ -1,0 +1,74 @@
+kind: line
+title: Worst-group accuracy vs. training steps
+xlabel: Training steps
+ylabel: Worst-group accuracy (%)
+style: neurips
+series:
+- label: Baseline
+  x:
+  - 0
+  - 20
+  - 40
+  - 60
+  - 80
+  - 100
+  y:
+  - 41.0
+  - 52.4
+  - 59.8
+  - 63.5
+  - 65.1
+  - 66.0
+- label: Ours
+  x:
+  - 0
+  - 20
+  - 40
+  - 60
+  - 80
+  - 100
+  y:
+  - 41.2
+  - 56.8
+  - 65.4
+  - 70.9
+  - 73.2
+  - 74.1
+  std:
+  - 0
+  - 1.2
+  - 1.0
+  - 0.9
+  - 0.8
+  - 0.7
+- label: Ours w/o router
+  x:
+  - 0
+  - 20
+  - 40
+  - 60
+  - 80
+  - 100
+  y:
+  - 41.0
+  - 54.1
+  - 62.2
+  - 66.8
+  - 68.5
+  - 69.3
+  std:
+  - 0
+  - 1.4
+  - 1.2
+  - 1.0
+  - 0.9
+  - 0.8
+significance:
+- x1: 80
+  x2: 100
+  y: 78.0
+  label: '**'
+formats:
+- pdf
+- svg
+- png

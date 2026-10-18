@@ -652,3 +652,180 @@ def test_paper_pdf_structure():
         doc.close()
     for heading in ("Abstract", "Introduction", "Related Work", "Method", "Experiments", "Conclusion"):
         assert heading in text, f"paper.pdf 缺少章节：{heading}"
+
+
+# ---------------------------------------------------------------------------
+# 模型 / GPU 服务器 GUI 配置
+# ---------------------------------------------------------------------------
+
+
+def test_llm_config_get_masks_keys(client: TestClient) -> None:
+    resp = client.get("/api/llm")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["providers"], "默认应有一个 deepseek provider"
+    assert data["roles"]["planner"]["provider"]
+    raw = json.dumps(data, ensure_ascii=False)
+    assert "api_key" not in raw or "sk-" not in raw
+    assert "DEEPSEEK" not in raw or "DEEPSEEK_API_KEY" in raw  # 只允许环境变量名
+
+
+def test_llm_provider_crud_and_persistence(client: TestClient, env) -> None:
+    from sciforge.config import global_config_path
+
+    payload = {
+        "name": "local-vllm",
+        "base_url": "http://127.0.0.1:8000/v1",
+        "default_model": "qwen2.5-72b",
+        "models": "qwen2.5-72b, qwen2.5-7b",
+        "api_key": "sk-local-test",
+        "api_key_env": "LOCAL_API_KEY",
+    }
+    resp = client.post("/api/llm/providers", json=payload)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["provider"]["name"] == "local-vllm"
+    assert data["provider"]["key_status"] == "config"
+    assert "sk-local-test" not in json.dumps(data)
+
+    listed = client.get("/api/llm").json()
+    names = [item["name"] for item in listed["providers"]]
+    assert "local-vllm" in names
+    assert "sk-local-test" not in json.dumps(listed)
+
+    config_path = global_config_path()
+    assert config_path.exists()
+    text = config_path.read_text(encoding="utf-8")
+    assert "local-vllm" in text
+    assert "sk-local-test" in text  # 只落本机 0600 配置文件
+
+    deleted = client.delete("/api/llm/providers/local-vllm")
+    assert deleted.status_code == 200
+    assert "local-vllm" not in [item["name"] for item in deleted.json()["providers"]]
+
+
+def test_llm_cannot_delete_last_provider(client: TestClient) -> None:
+    resp = client.delete("/api/llm/providers/deepseek")
+    assert resp.status_code == 400
+
+
+def test_llm_roles_validation_and_update(client: TestClient) -> None:
+    bad = client.post("/api/llm/roles", json={"roles": {"planner": {"provider": "nope", "model": "x"}}})
+    assert bad.status_code == 400
+    bad_role = client.post("/api/llm/roles", json={"roles": {"unknown": {"provider": "deepseek"}}})
+    assert bad_role.status_code == 400
+    ok = client.post(
+        "/api/llm/roles",
+        json={"roles": {"planner": {"provider": "deepseek", "model": "deepseek-reasoner"}}},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["roles"]["planner"]["model"] == "deepseek-reasoner"
+
+
+def test_llm_test_without_key_is_friendly(client: TestClient) -> None:
+    resp = client.post("/api/llm/test", json={"provider": "deepseek"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is False
+    assert "API Key" in (data.get("error") or "")
+
+
+def test_server_form_crud_and_persistence(client: TestClient, env) -> None:
+    from sciforge.config import global_config_path
+
+    payload = {
+        "name": "gpu-gui",
+        "host": "10.0.0.9",
+        "port": 2222,
+        "user": "lab",
+        "identity_file": "~/.ssh/id_ed25519",
+        "workdir": "~/sciforge",
+        "conda_env": "torch",
+        "scheduler": "none",
+        "max_parallel_jobs": 3,
+    }
+    resp = client.post("/api/servers", json=payload)
+    assert resp.status_code == 200, resp.text
+    server = resp.json()["server"]
+    assert server["name"] == "gpu-gui"
+    assert server["host"] == "10.0.0.9"
+    assert server["port"] == 2222
+    for secret_key in ("password", "password_env", "api_key", "token"):
+        assert secret_key not in server
+
+    listed = client.get("/api/servers").json()
+    assert [item["name"] for item in listed["servers"]] == ["gpu-gui"]
+    assert '"password_env"' not in json.dumps(listed)
+
+    assert "gpu-gui" in global_config_path().read_text(encoding="utf-8")
+
+    updated = client.post("/api/servers", json={**payload, "max_parallel_jobs": 5}).json()
+    assert updated["server"]["max_parallel_jobs"] == 5
+    assert len(updated["servers"]) == 1
+
+    assert client.post("/api/servers", json={**payload, "name": "bad server"}).status_code == 400
+    assert client.post("/api/servers", json={**payload, "scheduler": "k8s"}).status_code == 400
+
+    removed = client.delete("/api/servers/gpu-gui")
+    assert removed.status_code == 200
+    assert client.get("/api/servers").json()["count"] == 0
+
+
+def test_server_test_unknown_404(client: TestClient) -> None:
+    assert client.post("/api/servers/nope/test").status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 文献检索设置（GUI）
+# ---------------------------------------------------------------------------
+
+
+def test_literature_config_get_lists_sources(client: TestClient) -> None:
+    data = client.get("/api/literature/config")
+    assert data.status_code == 200
+    payload = data.json()
+    assert payload["ok"] is True
+    ids = {item["id"] for item in payload["sources"]}
+    assert {"arxiv", "daily", "openalex", "crossref", "hf_papers", "semantic_scholar"} <= ids
+    assert payload["s2_key_status"] == "missing"
+
+
+def test_literature_config_save_persists_and_masks(client: TestClient, env) -> None:
+    from sciforge.config import global_config_path
+
+    resp = client.post(
+        "/api/literature/config",
+        json={
+            "email": "research@example.com",
+            "unpaywall_email": "",
+            "s2_api_key": "s2-secret-demo",
+            "s2_api_key_env": "S2_API_KEY",
+            "daily_arxiv_language": "English",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["s2_key_status"] == "config"
+    assert payload["daily_arxiv_language"] == "English"
+    assert "s2-secret-demo" not in json.dumps(payload)
+    current = client.get("/api/literature/config").json()
+    assert current["email"] == "research@example.com"
+    assert "s2-secret-demo" not in json.dumps(current)
+    text = global_config_path().read_text(encoding="utf-8")
+    assert "s2-secret-demo" in text  # 只落本机 0600 配置
+    assert "English" in text or "daily_arxiv_language" in text
+
+    cleared = client.post(
+        "/api/literature/config",
+        json={"email": "research@example.com", "clear_s2_api_key": True},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["s2_key_status"] == "missing"
+
+
+def test_literature_config_validation(client: TestClient) -> None:
+    bad_lang = client.post("/api/literature/config", json={"daily_arxiv_language": "Klingon"})
+    assert bad_lang.status_code == 400
+    bad_email = client.post("/api/literature/config", json={"email": "not-an-email"})
+    assert bad_email.status_code == 400

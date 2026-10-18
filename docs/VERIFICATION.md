@@ -49,6 +49,8 @@ GUI 实跑验收（2026-10-18）：`sciforge gui` 启动后 headless Chrome 逐�
 ## 4. 真实数据验证（2026-10-18）
 
 - 实时 arXiv 检索：`sciforge lit search "diffusion transformer video generation" --source arxiv --limit 3` → 3 篇 + 写入文献库
+- 文献渠道实测（2026-10-18）：arXiv ✅ / daily-arXiv ✅ / OpenAlex ✅ / Crossref ✅ / HF Papers ✅ / Semantic Scholar ⚠️（匿名 429，配 S2_API_KEY 后可用）
+- GUI 配置实测：模型 Provider 新增/测试（Web 端验证脱敏与持久化）、GPU 服务器保存/SSH 失败反馈、文献设置保存/清除 S2 Key；`config.toml` 0600
 - daily-arXiv-ai-enhanced：`sciforge lit daily --category cs.CV --limit 3` → 中文增强摘要 + 文献库
 - 示例论文精读：`sciforge read examples/demo/fixtures/paper.pdf` → pymupdf 提取 4 页、章节结构完整
 - 实验骨架：`sciforge exp scaffold --template cv-classification` → `bash scripts/smoke.sh` → `SMOKE OK`

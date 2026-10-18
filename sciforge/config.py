@@ -130,6 +130,7 @@ class LLMConfig(_Model):
 class LiteratureConfig(_Model):
     email: str | None = None  # Unpaywall / 礼貌池 user-agent 需要
     s2_api_key_env: str = "S2_API_KEY"
+    s2_api_key: str | None = None  # 可选：GUI 写入本机配置；env 优先
     unpaywall_email: str | None = None
     daily_arxiv_language: str = "Chinese"  # Chinese | English
     arxiv_categories: list[str] = Field(

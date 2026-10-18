@@ -21,8 +21,9 @@
       pendingTools: [],
       buffer: '',
     },
-    lit: { tab: 'search', current: [], daily: null, library: null, loaded: false },
+    lit: { tab: 'search', current: [], daily: null, library: null, loaded: false, configLoaded: false },
     servers: [],
+    llm: { loaded: false, providers: [], roles: {}, default: '' },
     gpuProbed: false,
     pipe: { runId: null, timer: null, last: null },
     artifactsLoaded: false,
@@ -285,7 +286,11 @@
       $('#page-title').textContent = active.dataset.title || '';
       $('#page-subtitle').textContent = active.dataset.subtitle || '';
     }
-    if (page === 'literature' && !state.lit.loaded) loadLiterature();
+    if (page === 'literature') {
+      if (!state.lit.loaded) loadLiterature();
+      if (!state.lit.configLoaded) loadLitConfig();
+    }
+    if (page === 'llm') loadLlmPage();
     if (page === 'servers') loadServersPage();
     if (page === 'experiments') loadExperimentsPage();
     if (page === 'figures' && !state.artifactsLoaded) loadArtifacts();
@@ -960,6 +965,69 @@
     runLiteratureSearch('');
   }
 
+  /* ---------------------------------- 文献检索设置 ---------------------------------- */
+  async function loadLitConfig() {
+    try {
+      const data = await api('/api/literature/config');
+      state.lit.configLoaded = true;
+      $('#lit-email').value = data.email || '';
+      $('#lit-unpaywall-email').value = data.unpaywall_email || '';
+      $('#lit-s2-env').value = data.s2_api_key_env || 'S2_API_KEY';
+      $('#lit-daily-language').value = data.daily_arxiv_language || 'Chinese';
+      $('#lit-s2-key').value = '';
+      $('#lit-clear-s2').checked = false;
+      const badge = $('#lit-config-badge');
+      if (data.s2_key_status === 'env') {
+        badge.textContent = 'S2 Key 来自环境变量';
+        badge.className = 'badge badge-ok';
+      } else if (data.s2_key_status === 'config') {
+        badge.textContent = 'S2 Key 已保存';
+        badge.className = 'badge badge-ok';
+      } else {
+        badge.textContent = 'S2 Key 未配置（可选）';
+        badge.className = 'badge badge-ghost';
+      }
+      const sources = data.sources || [];
+      $('#lit-sources').innerHTML = sources.map((source) =>
+        '<span class="tag-chip" title="' + escapeHtml(source.note || '') + '">' + escapeHtml(source.name) +
+        (source.need_key ? ' · 建议 Key' : ' · 无需 Key') + '</span>'
+      ).join('');
+      if (data.note) {
+        $('#lit-config-notice').innerHTML = noticeHtml(data.note + ' 配置路径：' + data.config_path, 'info');
+      }
+    } catch (err) {
+      $('#lit-config-notice').innerHTML = noticeHtml('读取检索设置失败：' + err.message, 'err');
+    }
+  }
+
+  async function saveLitConfig(event) {
+    if (event) event.preventDefault();
+    const body = {
+      email: $('#lit-email').value.trim(),
+      unpaywall_email: $('#lit-unpaywall-email').value.trim(),
+      s2_api_key_env: $('#lit-s2-env').value.trim(),
+      daily_arxiv_language: $('#lit-daily-language').value,
+      clear_s2_api_key: $('#lit-clear-s2').checked,
+    };
+    const s2Key = $('#lit-s2-key').value.trim();
+    if (s2Key) body.s2_api_key = s2Key;
+    try {
+      const data = await apiPost('/api/literature/config', body);
+      $('#lit-s2-key').value = '';
+      $('#lit-clear-s2').checked = false;
+      toast(data.note || '检索设置已保存', 'ok', 5000);
+      await loadLitConfig();
+    } catch (err) {
+      toast('保存检索设置失败：' + err.message, 'err', 8000);
+      $('#lit-config-notice').innerHTML = noticeHtml('保存失败：' + err.message, 'err');
+    }
+  }
+
+  function bindLitConfig() {
+    $('#lit-config-form').addEventListener('submit', saveLitConfig);
+    $('#lit-config-refresh').addEventListener('click', loadLitConfig);
+  }
+
   /* ---------------------------------- 服务器 / GPU ---------------------------------- */
   function serverCard(server) {
     const rows = [
@@ -972,14 +1040,20 @@
       ['auth', server.auth],
       ['identity', server.identity_file || '—'],
     ];
+    const name = escapeHtml(server.name);
     return '' +
       '<article class="server-card">' +
-      '<div class="server-name"><span class="dot dot-ok"></span>' + escapeHtml(server.name) +
+      '<div class="server-name"><span class="dot dot-ok"></span>' + name +
       '<span class="server-host">' + escapeHtml(server.host) + ':' + escapeHtml(server.port) + '</span></div>' +
       '<dl class="server-rows">' +
       rows.map((pair) => '<dt>' + escapeHtml(pair[0]) + '</dt><dd>' + escapeHtml(pair[1] || '—') + '</dd>').join('') +
       '</dl>' +
-      '<button type="button" class="btn btn-ghost btn-sm" data-gpu-server="' + escapeHtml(server.name) + '">探测 GPU 状态</button>' +
+      '<div class="pc-actions">' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-gpu-server="' + name + '">探测 GPU</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-test-server="' + name + '">测试 SSH</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-edit-server="' + name + '">编辑</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-delete-server="' + name + '">删除</button>' +
+      '</div>' +
       '</article>';
   }
 
@@ -988,14 +1062,23 @@
     state.servers = data.servers || [];
     $('#srv-count').textContent = (data.count || 0) + ' 台';
     if (!state.servers.length) {
-      $('#srv-notice').innerHTML = noticeHtml(data.notice || '尚未配置 GPU 服务器', 'warn');
-      list.innerHTML = emptyState('🖥️', '尚未配置 GPU 服务器。在 ~/.sciforge/config.toml 添加 [[servers]] 后刷新页面。');
+      $('#srv-notice').innerHTML = noticeHtml(data.notice || '尚未配置 GPU 服务器。填写上方表单并保存即可。', 'warn');
+      list.innerHTML = emptyState('🖥️', '尚未配置 GPU 服务器。在上方「添加 / 编辑服务器」填写 host、用户、私钥路径后保存。');
       return;
     }
     $('#srv-notice').innerHTML = '';
     list.innerHTML = state.servers.map(serverCard).join('');
     list.querySelectorAll('button[data-gpu-server]').forEach((btn) => {
       btn.addEventListener('click', () => probeGpu(btn.dataset.gpuServer));
+    });
+    list.querySelectorAll('button[data-test-server]').forEach((btn) => {
+      btn.addEventListener('click', () => testServer(btn.dataset.testServer));
+    });
+    list.querySelectorAll('button[data-edit-server]').forEach((btn) => {
+      btn.addEventListener('click', () => fillServerForm(btn.dataset.editServer));
+    });
+    list.querySelectorAll('button[data-delete-server]').forEach((btn) => {
+      btn.addEventListener('click', () => deleteServer(btn.dataset.deleteServer));
     });
   }
 
@@ -1095,11 +1178,138 @@
     }
   }
 
+  /* ---------------- 服务器配置表单 ---------------- */
+  function showTestResult(container, ok, title, detailText) {
+    const node = $(container);
+    node.classList.remove('hidden');
+    node.innerHTML = '<div class="test-result ' + (ok ? 'ok' : 'err') + '">' +
+      '<div class="tr-head"><span>' + escapeHtml(title) + '</span>' +
+      '<span class="badge ' + (ok ? 'badge-ok' : 'badge-err') + '">' + (ok ? '成功' : '失败') + '</span></div>' +
+      (detailText
+        ? '<pre class="code-block" style="white-space:pre-wrap;overflow:auto;max-height:260px">' + escapeHtml(detailText) + '</pre>'
+        : '') +
+      '</div>';
+  }
+
+  function serverByName(name) {
+    return state.servers.find((item) => item.name === name) || null;
+  }
+
+  function fillServerForm(name) {
+    const server = serverByName(name);
+    if (!server) return;
+    $('#srv-name').value = server.name || '';
+    $('#srv-host').value = server.host || '';
+    $('#srv-port').value = server.port || 22;
+    $('#srv-user').value = server.user || 'root';
+    $('#srv-key').value = server.identity_file || '';
+    $('#srv-proxy').value = server.proxy_jump || '';
+    $('#srv-workdir').value = server.workdir || '~/sciforge';
+    $('#srv-conda').value = server.conda_env || '';
+    $('#srv-tmux').value = server.tmux_session || 'sciforge';
+    $('#srv-scheduler').value = server.scheduler || 'none';
+    $('#srv-partition').value = server.partition || '';
+    $('#srv-parallel').value = server.max_parallel_jobs || 2;
+    $('#srv-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    toast('已载入服务器 ' + name + '，修改后点击保存', 'info', 3500);
+  }
+
+  function resetServerForm() {
+    ['srv-name', 'srv-host', 'srv-key', 'srv-proxy', 'srv-conda', 'srv-partition'].forEach((id) => {
+      const node = document.getElementById(id);
+      if (node) node.value = '';
+    });
+    $('#srv-port').value = 22;
+    $('#srv-user').value = 'root';
+    $('#srv-workdir').value = '~/sciforge';
+    $('#srv-tmux').value = 'sciforge';
+    $('#srv-scheduler').value = 'none';
+    $('#srv-parallel').value = 2;
+    $('#srv-form-result').classList.add('hidden');
+  }
+
+  function collectServerForm() {
+    return {
+      name: $('#srv-name').value.trim(),
+      host: $('#srv-host').value.trim(),
+      port: Number($('#srv-port').value || 22),
+      user: $('#srv-user').value.trim() || 'root',
+      identity_file: $('#srv-key').value.trim() || null,
+      proxy_jump: $('#srv-proxy').value.trim() || null,
+      workdir: $('#srv-workdir').value.trim() || '~/sciforge',
+      conda_env: $('#srv-conda').value.trim() || null,
+      tmux_session: $('#srv-tmux').value.trim() || 'sciforge',
+      scheduler: $('#srv-scheduler').value || 'none',
+      partition: $('#srv-partition').value.trim() || null,
+      max_parallel_jobs: Number($('#srv-parallel').value || 2),
+      auto_mkdir: true,
+    };
+  }
+
+  async function saveServer(andTest) {
+    const form = document.getElementById('srv-form');
+    if (form && !form.reportValidity()) return;
+    try {
+      const data = await apiPost('/api/servers', collectServerForm());
+      toast(data.note || ('已保存服务器 ' + data.server.name), 'ok', 5000);
+      await loadServersPage();
+      if (andTest) await testServer(data.server.name);
+    } catch (err) {
+      showTestResult('#srv-form-result', false, '保存服务器失败', err.message);
+    }
+  }
+
+  async function testServer(name) {
+    showTestResult('#srv-form-result', true, '正在测试 SSH：' + name + '（最多 30s）', '');
+    try {
+      const data = await apiPost('/api/servers/' + encodeURIComponent(name) + '/test', {});
+      if (!data.available) {
+        showTestResult('#srv-form-result', false, '远程执行模块不可用', data.error || '');
+        return;
+      }
+      if (!data.ok) {
+        showTestResult('#srv-form-result', false, 'SSH 连接失败：' + name,
+          (data.error || '') + (data.info ? '\n\n' + prettyJson(data.info) : ''));
+        return;
+      }
+      const info = data.info || {};
+      const lines = [
+        '延迟: ' + (data.latency_ms || 0) + ' ms',
+        'OS: ' + (info.os || '—'),
+        'Python: ' + (info.python || '—'),
+        'Torch: ' + (info.torch || '—'),
+        'GPU: ' + (info.gpu || '—'),
+        'workdir: ' + (info.workdir || '—'),
+        'workdir 就绪: ' + (info.workdir_ready === undefined ? '—' : (info.workdir_ready ? '是' : '否')),
+      ];
+      showTestResult('#srv-form-result', true, 'SSH 连接成功：' + name, lines.join('\n'));
+    } catch (err) {
+      showTestResult('#srv-form-result', false, 'SSH 测试失败', err.message);
+    }
+  }
+
+  async function deleteServer(name) {
+    if (!window.confirm('删除服务器 ' + name + '？只修改本机配置，不影响远端。')) return;
+    try {
+      await api('/api/servers/' + encodeURIComponent(name), { method: 'DELETE' });
+      toast('已删除服务器 ' + name, 'ok');
+      await loadServersPage();
+    } catch (err) {
+      toast('删除失败：' + err.message, 'err', 7000);
+    }
+  }
+
   function bindServers() {
     $('#gpu-refresh').addEventListener('click', () => {
       const target = state.servers.length ? state.servers[0].name : null;
       probeGpu(target);
     });
+    $('#srv-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      saveServer(false);
+    });
+    $('#srv-save-test').addEventListener('click', () => saveServer(true));
+    $('#srv-form-reset').addEventListener('click', resetServerForm);
   }
 
   /* ---------------------------------- 实验 / Pipeline ---------------------------------- */
@@ -1460,6 +1670,251 @@
     });
   }
 
+  /* ---------------------------------- 大模型配置 ---------------------------------- */
+  function providerCard(provider) {
+    const keyBadge = provider.key_status === 'config'
+      ? '<span class="badge badge-ok">Key 已保存</span>'
+      : provider.key_status === 'env'
+        ? '<span class="badge badge-ok">Key 来自环境变量</span>'
+        : '<span class="badge badge-warn">缺少 Key</span>';
+    const models = (provider.models || []).slice(0, 4).map((m) => '<span class="tag-chip">' + escapeHtml(m) + '</span>').join('');
+    const name = escapeHtml(provider.name);
+    const keyEnv = provider.api_key_env ? ' <code>' + escapeHtml(provider.api_key_env) + '</code>' : '';
+    return '<article class="provider-card' + (provider.is_default ? ' is-default' : '') + '">' +
+      '<div class="pc-head"><span class="pc-name">' + name + '</span>' +
+      (provider.is_default ? '<span class="badge badge-accent">默认</span>' : '') + '</div>' +
+      '<div class="pc-row"><span>Base URL</span><code title="' + escapeHtml(provider.base_url) + '">' + escapeHtml(provider.base_url) + '</code></div>' +
+      '<div class="pc-row"><span>默认模型</span><code>' + escapeHtml(provider.default_model) + '</code></div>' +
+      (models ? '<div class="tag-list">' + models + '</div>' : '') +
+      '<div class="pc-row"><span>Key</span><span>' + keyBadge + keyEnv + '</span></div>' +
+      '<div class="pc-actions">' +
+      '<button class="btn btn-ghost btn-sm" type="button" data-edit-provider="' + name + '">编辑</button>' +
+      '<button class="btn btn-ghost btn-sm" type="button" data-test-provider="' + name + '">测试连接</button>' +
+      (provider.is_default ? '' : '<button class="btn btn-ghost btn-sm" type="button" data-default-provider="' + name + '">设为默认</button>') +
+      '<button class="btn btn-ghost btn-sm" type="button" data-delete-provider="' + name + '">删除</button>' +
+      '</div></article>';
+  }
+
+  function renderProviders(data) {
+    const grid = $('#llm-providers');
+    state.llm.providers = data.providers || [];
+    state.llm.default = data.default || '';
+    $('#llm-provider-count').textContent =
+      state.llm.providers.length + ' 个 · 默认 ' + (data.default || '—');
+    if (!state.llm.providers.length) {
+      grid.innerHTML = emptyState('🧠', '还没有模型 Provider。在下方表单填写 Base URL / 模型 / Key 后保存。');
+      return;
+    }
+    grid.innerHTML = state.llm.providers.map(providerCard).join('');
+    grid.querySelectorAll('[data-edit-provider]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const provider = state.llm.providers.find((item) => item.name === btn.dataset.editProvider);
+        if (provider) fillProviderForm(provider);
+      });
+    });
+    grid.querySelectorAll('[data-test-provider]').forEach((btn) => {
+      btn.addEventListener('click', () => testLlm(btn.dataset.testProvider, null));
+    });
+    grid.querySelectorAll('[data-default-provider]').forEach((btn) => {
+      btn.addEventListener('click', () => makeDefaultProvider(btn.dataset.defaultProvider));
+    });
+    grid.querySelectorAll('[data-delete-provider]').forEach((btn) => {
+      btn.addEventListener('click', () => deleteProvider(btn.dataset.deleteProvider));
+    });
+  }
+
+  function fillProviderForm(provider) {
+    $('#llm-name').value = provider.name || '';
+    $('#llm-name').readOnly = true;
+    $('#llm-name').style.opacity = '0.65';
+    $('#llm-base-url').value = provider.base_url || '';
+    $('#llm-default-model').value = provider.default_model || '';
+    $('#llm-models').value = (provider.models || []).join(', ');
+    $('#llm-api-key').value = '';
+    $('#llm-api-key-env').value = provider.api_key_env || '';
+    $('#llm-temperature').value = provider.temperature === null || provider.temperature === undefined ? '' : provider.temperature;
+    $('#llm-max-tokens').value = provider.max_tokens === null || provider.max_tokens === undefined ? '' : provider.max_tokens;
+    $('#llm-clear-key').checked = false;
+    $('#llm-make-default').checked = false;
+    $('#llm-test-result').classList.add('hidden');
+    $('#llm-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    toast('已载入 Provider ' + provider.name + '（名称不可改），修改后保存', 'info', 4000);
+  }
+
+  function resetProviderForm() {
+    ['llm-name', 'llm-base-url', 'llm-default-model', 'llm-models', 'llm-api-key', 'llm-api-key-env', 'llm-temperature', 'llm-max-tokens'].forEach((id) => {
+      const node = document.getElementById(id);
+      if (node) node.value = '';
+    });
+    $('#llm-name').readOnly = false;
+    $('#llm-name').style.opacity = '1';
+    $('#llm-clear-key').checked = false;
+    $('#llm-make-default').checked = false;
+    $('#llm-test-result').classList.add('hidden');
+  }
+
+  function collectProviderForm() {
+    const body = {
+      name: $('#llm-name').value.trim(),
+      base_url: $('#llm-base-url').value.trim(),
+      default_model: $('#llm-default-model').value.trim(),
+      models: $('#llm-models').value.trim(),
+      api_key_env: $('#llm-api-key-env').value.trim(),
+      clear_api_key: $('#llm-clear-key').checked,
+      make_default: $('#llm-make-default').checked,
+      supports_tools: true,
+    };
+    const key = $('#llm-api-key').value.trim();
+    if (key) body.api_key = key;
+    const temperature = $('#llm-temperature').value.trim();
+    if (temperature !== '') body.temperature = Number(temperature);
+    const maxTokens = $('#llm-max-tokens').value.trim();
+    if (maxTokens !== '') body.max_tokens = Number(maxTokens);
+    return body;
+  }
+
+  async function saveProvider(andTest) {
+    const form = document.getElementById('llm-form');
+    if (form && !form.reportValidity()) return;
+    try {
+      const data = await apiPost('/api/llm/providers', collectProviderForm());
+      toast(data.note || ('已保存 Provider ' + data.provider.name), 'ok', 5000);
+      $('#llm-api-key').value = '';
+      $('#llm-clear-key').checked = false;
+      resetProviderForm();
+      await loadLlmPage();
+      await loadHealth();
+      if (andTest) await testLlm(data.provider.name, null);
+    } catch (err) {
+      showTestResult('#llm-test-result', false, '保存 Provider 失败', err.message);
+    }
+  }
+
+  async function testLlm(providerName, role) {
+    const label = providerName ? ('Provider：' + providerName) : ('角色：' + (role || 'executor'));
+    showTestResult('#llm-test-result', true, '正在测试 ' + label + '（最多 45s）', '');
+    try {
+      const data = await apiPost('/api/llm/test', providerName ? { provider: providerName } : { role: role || 'executor' });
+      if (!data.available) {
+        showTestResult('#llm-test-result', false, 'LLM 测试不可用', data.error || '');
+        return;
+      }
+      if (!data.ok) {
+        showTestResult('#llm-test-result', false, 'LLM 测试失败：' + (data.provider || ''), data.error || '');
+        return;
+      }
+      const usage = data.usage || {};
+      const lines = [
+        'Provider: ' + (data.provider || '—'),
+        'Model: ' + (data.model || '—'),
+        '延迟: ' + (data.latency_ms || 0) + ' ms',
+        'tokens: ' + (usage.total_tokens || '—'),
+        '',
+        '回复：',
+        (data.content || '').slice(0, 1200),
+      ];
+      showTestResult('#llm-test-result', true, 'LLM 连接成功：' + (data.provider || ''), lines.join('\n'));
+    } catch (err) {
+      showTestResult('#llm-test-result', false, 'LLM 测试失败', err.message);
+    }
+  }
+
+  async function deleteProvider(name) {
+    if (!window.confirm('删除 Provider ' + name + '？只修改本机配置，不影响远端服务。')) return;
+    try {
+      await api('/api/llm/providers/' + encodeURIComponent(name), { method: 'DELETE' });
+      toast('已删除 Provider ' + name, 'ok');
+      await loadLlmPage();
+      await loadHealth();
+    } catch (err) {
+      toast('删除失败：' + err.message, 'err', 8000);
+    }
+  }
+
+  async function makeDefaultProvider(name) {
+    const provider = state.llm.providers.find((item) => item.name === name);
+    if (!provider) return;
+    try {
+      await apiPost('/api/llm/providers', {
+        name: provider.name,
+        base_url: provider.base_url,
+        default_model: provider.default_model,
+        models: (provider.models || []).join(','),
+        api_key_env: provider.api_key_env || '',
+        make_default: true,
+      });
+      toast('已设为默认 Provider：' + name, 'ok');
+      await loadLlmPage();
+      await loadHealth();
+    } catch (err) {
+      toast('设置默认失败：' + err.message, 'err', 8000);
+    }
+  }
+
+  function renderRoles(data) {
+    const box = $('#llm-roles');
+    const roles = data.roles || {};
+    state.llm.roles = roles;
+    const providers = state.llm.providers;
+    box.innerHTML = Object.keys(roles).map((role) => {
+      const entry = roles[role] || {};
+      const options = providers.map((provider) => {
+        const selected = provider.name === entry.provider ? ' selected' : '';
+        return '<option value="' + escapeHtml(provider.name) + '"' + selected + '>' + escapeHtml(provider.name) + '</option>';
+      }).join('');
+      return '<div class="role-row" data-role="' + escapeHtml(role) + '">' +
+        '<span class="role-name">' + escapeHtml(role) + '</span>' +
+        '<select data-role-provider>' + options + '</select>' +
+        '<input data-role-model value="' + escapeHtml(entry.model || '') + '" placeholder="模型（留空用 Provider 默认）">' +
+        '</div>';
+    }).join('');
+  }
+
+  async function saveRoles() {
+    const roles = {};
+    $$('#llm-roles .role-row').forEach((row) => {
+      const provider = row.querySelector('[data-role-provider]');
+      const model = row.querySelector('[data-role-model]');
+      roles[row.dataset.role] = { provider: provider ? provider.value : null, model: model ? (model.value.trim() || null) : null };
+    });
+    try {
+      const data = await apiPost('/api/llm/roles', { roles: roles });
+      $('#llm-roles-notice').textContent = '已保存 ' + Object.keys(roles).length + ' 个角色路由';
+      toast('角色路由已保存', 'ok');
+      state.llm.roles = data.roles || roles;
+      await loadHealth();
+    } catch (err) {
+      $('#llm-roles-notice').textContent = '保存失败：' + err.message;
+      toast('角色路由保存失败：' + err.message, 'err', 8000);
+    }
+  }
+
+  async function loadLlmPage() {
+    try {
+      const data = await api('/api/llm');
+      state.llm.loaded = true;
+      renderProviders(data);
+      renderRoles(data);
+      $('#llm-notice').innerHTML = noticeHtml(
+        '配置写入：' + (data.config_path || '~/.sciforge/config.toml') +
+        '（0600）。API Key 不会回传浏览器；无 Key 时自动离线 Mock。', 'info');
+      $('#llm-notice').classList.remove('hidden');
+    } catch (err) {
+      $('#llm-providers').innerHTML = emptyState('⚠️', '读取模型配置失败：' + err.message);
+    }
+  }
+
+  function bindLlm() {
+    $('#llm-refresh').addEventListener('click', loadLlmPage);
+    $('#llm-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      saveProvider(false);
+    });
+    $('#llm-save-test').addEventListener('click', () => saveProvider(true));
+    $('#llm-form-reset').addEventListener('click', resetProviderForm);
+    $('#llm-roles-save').addEventListener('click', saveRoles);
+  }
+
   /* ---------------------------------- 技能 ---------------------------------- */
   function skillCard(skill) {
     const tags = (skill.tags || []).slice(0, 5).map((tag) => '<span class="tag-chip">' + escapeHtml(tag) + '</span>').join('');
@@ -1553,7 +2008,9 @@
     bindTheme();
     bindChat();
     bindLiterature();
+    bindLitConfig();
     bindServers();
+    bindLlm();
     bindExperiments();
     bindFigures();
     bindSkills();

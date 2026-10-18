@@ -33,6 +33,7 @@ Skill（科研方法论）+ Tool（确定性能力）+ Pipeline（可组合工�
 - [Skill 体系与 DSH 集成](#skill-体系与-dsh-集成)
 - [自定义 LLM API](#自定义-llm-api)
 - [本地 Web 控制台](#本地-web-控制台)
+- [文献获取与配置](docs/LITERATURE.md)
 - [目录结构](#目录结构)
 - [Roadmap 与已知限制](#roadmap-与已知限制)
 - [致谢](#致谢)
@@ -80,7 +81,16 @@ sciforge gui --project ~/my-research --port 8765
 sciforge serve --open                         # 等价写法；不自动开浏览器则用 sciforge serve
 ```
 
-七个页面：**对话 / 文献 / 服务器 / 实验 / 图表 / 技能 / 关于**
+八个页面：**对话 / 模型 / 文献 / 服务器 / 实验 / 图表 / 技能 / 关于**
+
+其中 **模型、服务器、文献设置都可以直接在网页里填空配置**，保存到本机 `~/.sciforge/config.toml`（0600），
+每次保存/测试都有即时结果反馈：
+
+| 配置 | 页面 | 填什么 |
+|---|---|---|
+| 大模型 Provider | 模型 | 名称 / Base URL / 模型 / API Key（或环境变量名）/ 角色路由；支持「保存并测试」 |
+| GPU 服务器 | 服务器 | host / 端口 / 用户 / 私钥路径 / workdir / conda / Slurm；支持「保存并测试 SSH」 |
+| 文献检索 | 文献 | 邮箱、Semantic Scholar Key、每日 arXiv 语言；渠道与 Key 需求一目了然 |
 
 | 页面 | 能力 |
 |---|---|
@@ -105,11 +115,17 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 
 ![GUI 图表：论文配图与 PDF 产物](examples/demo/screenshots/live-console-figures.png)
 
+![GUI 模型配置：Provider 表单 + 角色路由](examples/demo/screenshots/gui-model-config.png)
+
+![GUI 服务器配置：填空 + SSH 测试](examples/demo/screenshots/gui-server-config.png)
+
+![GUI 文献检索设置：邮箱 / S2 Key / 每日语言](examples/demo/screenshots/gui-literature-config.png)
+
 ## 核心能力
 
 | 模块 | 能力 | 入口 |
 |---|---|---|
-| 📚 文献 | arXiv / Semantic Scholar / OpenAlex / HF Papers / Crossref / 每日 arXiv 中文摘要；BibTeX；OA 下载 | `sciforge lit ...`、`lit_search`、`lit_daily` |
+| 📚 文献 | arXiv / Semantic Scholar / OpenAlex / HF Papers / Crossref / 每日 arXiv 中文摘要；BibTeX；OA 下载（渠道与配置见 [docs/LITERATURE.md](docs/LITERATURE.md)） | `sciforge lit ...`、`lit_search`、`lit_daily` |
 | 📖 精读 | PDF → 章节结构 → 结构化笔记 / 对比矩阵 / 论文问答 | `sciforge read ...`、`paper_read`、`paper_note` |
 | 💡 创新点 | 从文献空白生成 Idea Card（空白/洞察/方法/MVP/风险/评分）与 Proposal | `sciforge idea generate`、`idea_generate` |
 | 🧪 实验 | 实验设计 → 代码脚手架（CV/NLP/LLM-SFT）→ 远程启动 → 状态/日志 → 指标回收 | `sciforge exp ...`、`exp_scaffold`、`exp_launch` |

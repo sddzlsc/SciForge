@@ -83,8 +83,12 @@ sciforge gui --project ~/my-research --port 8765
 sciforge serve --open            # 等价；不带 --open 时手动打开 URL
 ```
 
-页面：对话（流式 + 工具卡片） / 文献（实时 arXiv + 每日摘要 + 本地库） / 服务器（GPU 状态） /
-实验（pipeline 运行与历史） / 图表（配图与 PDF 预览） / 技能（一键装 DSH） / 关于（状态与安全边界）。
+页面：对话 / 模型 / 文献 / 服务器 / 实验 / 图表 / 技能 / 关于。
+
+**三个配置都可以在 GUI 里填空完成**（保存到 ~/.sciforge/config.toml，0600）：
+- 模型：Provider 名称 / Base URL / 模型 / API Key / 角色路由 → 「保存并测试」
+- 服务器：host / 端口 / 用户 / 私钥 / workdir / conda / Slurm → 「保存并测试 SSH」
+- 文献：邮箱 / Semantic Scholar Key / 每日 arXiv 语言 → 「保存检索设置」
 无 API key 时会自动进入离线 Mock 演示，配好 key 后同一界面直接走真实模型。
 
 ## 常见问题
@@ -92,7 +96,7 @@ sciforge serve --open            # 等价；不带 --open 时手动打开 URL
 | 现象 | 解决 |
 |---|---|
 | `缺少 API key` | `export DEEPSEEK_API_KEY=...`，或 `--mock` 离线 |
-| 文献检索 429 | Semantic Scholar 限流，配置 `S2_API_KEY` 或改用 arXiv/OpenAlex |
+| 文献检索 429 | Semantic Scholar 限流，在 GUI 文献页配 `S2_API_KEY` 或改用 arXiv/OpenAlex（见 docs/LITERATURE.md） |
 | 训练启动后没日志 | `sciforge exp status` / `sciforge remote tail ...`；tmux 会话名见 run.json |
 | 图只有 SVG | macOS 默认用 `sips` 导出 PDF/PNG；Linux 可 `uv pip install cairosvg` 或 `brew install librsvg` |
 | 论文无法编译 | 安装 TeX Live；`sciforge write compile` 会给出缺失宏包提示 |

@@ -35,9 +35,19 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from sciforge.config import Settings, ensure_dirs, find_project_root, get_settings
+from sciforge.config import (
+    ProviderConfig,
+    RoleConfig,
+    ServerConfig,
+    Settings,
+    ensure_dirs,
+    find_project_root,
+    get_settings,
+    global_config_path,
+    save_global_config,
+)
 from sciforge.core.events import Event, EventBus
-from sciforge.core.types import LLMResponse, ToolCall, Usage
+from sciforge.core.types import ChatMessage, LLMResponse, ToolCall, Usage
 
 WEB_DIR = Path(__file__).resolve().parent
 STATIC_DIR = WEB_DIR / "static"
@@ -93,6 +103,71 @@ class PipelineRunRequest(BaseModel):
 class SkillInstallRequest(BaseModel):
     name: str
     target: str = "dsh"
+
+
+class ProviderForm(BaseModel):
+    """GUI 里「模型 Provider」表单（密钥只写本机配置文件，不随响应返回）。"""
+
+    name: str
+    base_url: str
+    default_model: str
+    type: str = "openai-compatible"
+    models: list[str] | str = Field(default_factory=list)
+    api_key: str | None = None
+    clear_api_key: bool = False
+    make_default: bool = False
+    api_key_env: str | None = None
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    max_tokens: int | None = Field(default=None, ge=1, le=2_000_000)
+    supports_tools: bool = True
+    input_cost_per_mtok: float | None = Field(default=None, ge=0)
+    output_cost_per_mtok: float | None = Field(default=None, ge=0)
+
+
+class RoleEntry(BaseModel):
+    provider: str | None = None
+    model: str | None = None
+
+
+class RolesForm(BaseModel):
+    roles: dict[str, RoleEntry]
+
+
+class LlmTestRequest(BaseModel):
+    provider: str | None = None
+    role: str | None = None
+    model: str | None = None
+    prompt: str = "用一句话说明你是谁。"
+
+
+class LiteratureForm(BaseModel):
+    """GUI「文献检索设置」表单：可选 S2 Key / 邮箱 / 每日 arXiv 语言。"""
+
+    email: str | None = None
+    unpaywall_email: str | None = None
+    s2_api_key: str | None = None
+    clear_s2_api_key: bool = False
+    s2_api_key_env: str | None = None
+    daily_arxiv_language: str = "Chinese"
+
+
+class ServerForm(BaseModel):
+    """GUI 里「GPU 服务器」表单；不包含任何密码字段。"""
+
+    name: str
+    host: str
+    port: int = Field(default=22, ge=1, le=65535)
+    user: str = "root"
+    identity_file: str | None = None
+    proxy_jump: str | None = None
+    workdir: str = "~/sciforge"
+    conda_env: str | None = None
+    python: str = "python"
+    tmux_session: str = "sciforge"
+    scheduler: str = "none"
+    partition: str | None = None
+    max_parallel_jobs: int = Field(default=2, ge=1, le=64)
+    auto_mkdir: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +395,61 @@ def _server_public(server: Any) -> dict[str, Any]:
         "identity_file": identity,  # 路径可展示，不读取内容
         "auth": auth,
         "has_password_env": has_password_env,
+        "proxy_jump": getattr(server, "proxy_jump", None),
+        "python": getattr(server, "python", "python"),
+        "max_parallel_jobs": int(getattr(server, "max_parallel_jobs", 2) or 2),
+        "auto_mkdir": bool(getattr(server, "auto_mkdir", True)),
     }
+
+
+def _key_status(provider: Any) -> tuple[str, str]:
+    """返回 (状态, 环境变量名)；绝不返回密钥本身。"""
+    env_name = str(getattr(provider, "api_key_env", "") or "")
+    if getattr(provider, "api_key", None):
+        return "config", env_name
+    if env_name and os.environ.get(env_name):
+        return "env", env_name
+    return "missing", env_name
+
+
+def _provider_public(settings: Settings, name: str, provider: Any) -> dict[str, Any]:
+    status, env_name = _key_status(provider)
+    return {
+        "name": name,
+        "type": str(getattr(provider, "type", "openai-compatible")),
+        "base_url": str(getattr(provider, "base_url", "")),
+        "default_model": str(getattr(provider, "default_model", "")),
+        "models": list(getattr(provider, "models", []) or []),
+        "api_key_env": env_name or None,
+        "key_status": status,
+        "is_default": name == settings.llm.default,
+        "temperature": getattr(provider, "temperature", None),
+        "max_tokens": getattr(provider, "max_tokens", None),
+        "supports_tools": bool(getattr(provider, "supports_tools", True)),
+        "input_cost_per_mtok": getattr(provider, "input_cost_per_mtok", 0.0),
+        "output_cost_per_mtok": getattr(provider, "output_cost_per_mtok", 0.0),
+    }
+
+
+KNOWN_ROLES = ("planner", "executor", "writer", "reviewer", "vision")
+
+
+def _roles_public(settings: Settings) -> dict[str, dict[str, Any]]:
+    roles: dict[str, dict[str, Any]] = {}
+    for role in KNOWN_ROLES:
+        rc = settings.llm.roles.get(role)
+        provider = (getattr(rc, "provider", None) if rc else None) or settings.llm.default
+        roles[role] = {
+            "provider": provider,
+            "model": (getattr(rc, "model", None) if rc else None) or "",
+            "explicit_provider": bool(getattr(rc, "provider", None)) if rc else False,
+        }
+    return roles
+
+
+def _mask_url(url: str) -> str:
+    """日志/错误里避免泄露 URL 里的 user:pass。"""
+    return re.sub(r"//[^/@\s]+@", "//***@", str(url))
 
 
 # ---------------------------------------------------------------------------
@@ -1125,6 +1254,351 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "content": str(getattr(result, "content", ""))[:6000],
             "error": getattr(result, "error", None),
             "data": _jsonable(getattr(result, "data", None), max_str=4000),
+        }
+
+    # ---------------------------- 大模型配置（GUI） ----------------------------
+    @app.get("/api/llm")
+    def api_llm_config() -> dict[str, Any]:
+        return {
+            "ok": True,
+            "available": True,
+            "default": settings.llm.default,
+            "providers": [
+                _provider_public(settings, name, cfg) for name, cfg in settings.llm.providers.items()
+            ],
+            "roles": _roles_public(settings),
+            "env_hint": "DEEPSEEK_API_KEY",
+            "config_path": str(global_config_path()),
+            "mock_env": _is_mock_env(),
+            "note": "API Key 只会写入本机 ~/.sciforge/config.toml（0600），不会回传浏览器。",
+        }
+
+    @app.post("/api/llm/providers")
+    def api_llm_provider_save(form: ProviderForm) -> dict[str, Any]:
+        name = (form.name or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", name):
+            raise HTTPException(status_code=400, detail="Provider 名称只能包含字母/数字/下划线/点/短横线（1-40 字符）")
+        base_url = (form.base_url or "").strip().rstrip("/")
+        if not re.match(r"^https?://", base_url):
+            raise HTTPException(status_code=400, detail="Base URL 必须以 http:// 或 https:// 开头")
+        default_model = (form.default_model or "").strip()
+        if not default_model:
+            raise HTTPException(status_code=400, detail="默认模型不能为空")
+        raw_models = form.models
+        if isinstance(raw_models, str):
+            models = [item.strip() for item in re.split(r"[,，\n]", raw_models) if item.strip()]
+        else:
+            models = [str(item).strip() for item in (raw_models or []) if str(item).strip()]
+        if default_model not in models:
+            models = [default_model, *[item for item in models if item != default_model]]
+
+        existing = settings.llm.providers.get(name)
+        provider_kwargs: dict[str, Any] = {
+            "type": (form.type or "openai-compatible").strip() or "openai-compatible",
+            "base_url": base_url,
+            "default_model": default_model,
+            "models": models,
+            "api_key_env": (form.api_key_env or "").strip() or None,
+            "supports_tools": bool(form.supports_tools),
+        }
+        if form.temperature is not None:
+            provider_kwargs["temperature"] = form.temperature
+        elif existing is not None:
+            provider_kwargs["temperature"] = existing.temperature
+        if form.max_tokens is not None:
+            provider_kwargs["max_tokens"] = form.max_tokens
+        elif existing is not None:
+            provider_kwargs["max_tokens"] = existing.max_tokens
+        if form.input_cost_per_mtok is not None:
+            provider_kwargs["input_cost_per_mtok"] = form.input_cost_per_mtok
+        elif existing is not None:
+            provider_kwargs["input_cost_per_mtok"] = existing.input_cost_per_mtok
+        if form.output_cost_per_mtok is not None:
+            provider_kwargs["output_cost_per_mtok"] = form.output_cost_per_mtok
+        elif existing is not None:
+            provider_kwargs["output_cost_per_mtok"] = existing.output_cost_per_mtok
+
+        # Key 规则：clear_api_key 优先；填写了新 Key 才覆盖；留空则保留原值。
+        if form.clear_api_key:
+            provider_kwargs["api_key"] = None
+        elif form.api_key is not None and form.api_key.strip():
+            provider_kwargs["api_key"] = form.api_key.strip()
+        elif existing is not None:
+            provider_kwargs["api_key"] = existing.api_key
+        else:
+            provider_kwargs["api_key"] = None
+
+        provider = ProviderConfig(**provider_kwargs)
+        settings.llm.providers[name] = provider
+        if not settings.llm.default or settings.llm.default not in settings.llm.providers:
+            settings.llm.default = name
+        if form.make_default:
+            settings.llm.default = name
+        save_global_config(settings)
+        return {
+            "ok": True,
+            "available": True,
+            "provider": _provider_public(settings, name, provider),
+            "default": settings.llm.default,
+            "path": str(global_config_path()),
+            "note": "已保存到本机 ~/.sciforge/config.toml（0600）",
+        }
+
+    @app.delete("/api/llm/providers/{name}")
+    def api_llm_provider_delete(name: str) -> dict[str, Any]:
+        if name not in settings.llm.providers:
+            raise HTTPException(status_code=404, detail=f"Provider 不存在：{name}")
+        if len(settings.llm.providers) <= 1:
+            raise HTTPException(status_code=400, detail="至少保留一个 Provider，无法删除最后一个")
+        del settings.llm.providers[name]
+        for _role, rc in list(settings.llm.roles.items()):
+            if getattr(rc, "provider", None) == name:
+                rc.provider = None
+                rc.model = None
+        if settings.llm.default == name:
+            settings.llm.default = next(iter(settings.llm.providers))
+        save_global_config(settings)
+        return {
+            "ok": True,
+            "available": True,
+            "default": settings.llm.default,
+            "providers": [
+                _provider_public(settings, key, cfg) for key, cfg in settings.llm.providers.items()
+            ],
+            "roles": _roles_public(settings),
+        }
+
+    @app.post("/api/llm/roles")
+    def api_llm_roles_save(form: RolesForm) -> dict[str, Any]:
+        for role, entry in form.roles.items():
+            if role not in KNOWN_ROLES:
+                raise HTTPException(status_code=400, detail=f"未知角色：{role}")
+            provider = (entry.provider or "").strip()
+            if provider and provider not in settings.llm.providers:
+                raise HTTPException(status_code=400, detail=f"角色 {role} 指向未配置的 Provider：{provider}")
+            settings.llm.roles[role] = RoleConfig(
+                provider=provider or None,
+                model=(entry.model or "").strip() or None,
+            )
+        save_global_config(settings)
+        return {
+            "ok": True,
+            "available": True,
+            "roles": _roles_public(settings),
+            "path": str(global_config_path()),
+        }
+
+    @app.post("/api/llm/test")
+    def api_llm_test(req: LlmTestRequest) -> dict[str, Any]:
+        role = (req.role or "").strip() or None
+        provider_name = (req.provider or "").strip() or (
+            settings.llm.provider_name_for(role) if role else settings.llm.default
+        )
+        cfg = settings.llm.providers.get(provider_name)
+        if cfg is None:
+            raise HTTPException(status_code=404, detail=f"Provider 不存在：{provider_name}")
+        api_key = settings.resolve_api_key(provider_name)
+        if not api_key:
+            env_name = cfg.api_key_env or "DEEPSEEK_API_KEY"
+            return {
+                "ok": False,
+                "available": True,
+                "provider": provider_name,
+                "error": f"缺少 API Key：请在表单填写 Key，或 export {env_name}",
+            }
+        role_cfg = settings.llm.roles.get(role) if role else None
+        model = (req.model or "").strip() or (
+            getattr(role_cfg, "model", None) if role_cfg else None
+        ) or cfg.default_model
+        prompt = (req.prompt or "用一句话说明你是谁。").strip()[:2000]
+        box: dict[str, Any] = {}
+        started = time.monotonic()
+
+        def probe() -> None:
+            try:
+                from sciforge.llm.openai_compat import OpenAICompatProvider
+
+                provider = OpenAICompatProvider(provider_name, cfg, api_key=api_key)
+                response = provider.chat(
+                    [ChatMessage(role="user", content=prompt)],
+                    model=model,
+                    max_tokens=min(int(cfg.max_tokens or 4096), 256),
+                )
+                box["response"] = response
+            except Exception as exc:  # noqa: BLE001
+                box["error"] = f"{type(exc).__name__}: {_mask_url(str(exc))[:600]}"
+
+        thread = threading.Thread(target=probe, name="sciforge-llm-test", daemon=True)
+        thread.start()
+        thread.join(timeout=45)
+        if thread.is_alive():
+            return {
+                "ok": False,
+                "available": True,
+                "provider": provider_name,
+                "model": model,
+                "error": "LLM 测试超时（>45s）：请检查 Base URL / 网络 / 代理",
+            }
+        if "error" in box:
+            return {"ok": False, "available": True, "provider": provider_name, "model": model, "error": box["error"]}
+        response = box.get("response")
+        return {
+            "ok": True,
+            "available": True,
+            "provider": provider_name,
+            "model": model,
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "content": (getattr(response, "content", "") or "")[:1200],
+            "usage": _jsonable(getattr(response, "usage", None), max_str=2000),
+        }
+
+    # ---------------------------- 文献检索设置（GUI） ----------------------------
+    @app.get("/api/literature/config")
+    def api_literature_config() -> dict[str, Any]:
+        lit = settings.literature
+        has_config_key = bool(getattr(lit, "s2_api_key", None))
+        env_name = str(getattr(lit, "s2_api_key_env", "S2_API_KEY") or "S2_API_KEY")
+        has_env_key = bool(os.environ.get(env_name))
+        return {
+            "ok": True,
+            "available": True,
+            "email": getattr(lit, "email", None) or "",
+            "unpaywall_email": getattr(lit, "unpaywall_email", None) or "",
+            "s2_api_key_env": env_name,
+            "s2_key_status": "env" if has_env_key else ("config" if has_config_key else "missing"),
+            "daily_arxiv_language": getattr(lit, "daily_arxiv_language", "Chinese"),
+            "arxiv_categories": list(getattr(lit, "arxiv_categories", []) or []),
+            "config_path": str(global_config_path()),
+            "sources": [
+                {"id": "arxiv", "name": "arXiv", "need_key": False, "note": "预印本全文，最稳定"},
+                {"id": "daily", "name": "daily-arXiv-ai-enhanced", "need_key": False, "note": "每日 AI 中文摘要"},
+                {"id": "openalex", "name": "OpenAlex", "need_key": False, "note": "跨库元数据 + OA 链接"},
+                {"id": "crossref", "name": "Crossref", "need_key": False, "note": "DOI / BibTeX 权威元数据"},
+                {"id": "hf_papers", "name": "HF Papers", "need_key": False, "note": "HF 每日/趋势论文"},
+                {"id": "semantic_scholar", "name": "Semantic Scholar", "need_key": True, "note": "引用图/摘要；匿名 429，建议配 Key"},
+            ],
+            "note": "S2 Key 写入本机 ~/.sciforge/config.toml（0600），env 变量优先；不会回传浏览器。",
+        }
+
+    @app.post("/api/literature/config")
+    def api_literature_config_save(form: LiteratureForm) -> dict[str, Any]:
+        language = (form.daily_arxiv_language or "Chinese").strip()
+        if language not in ("Chinese", "English"):
+            raise HTTPException(status_code=400, detail="daily_arxiv_language 只能是 Chinese 或 English")
+        email = (form.email or "").strip()
+        if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            raise HTTPException(status_code=400, detail="邮箱格式不正确")
+        lit = settings.literature
+        lit.email = email or None
+        lit.unpaywall_email = (form.unpaywall_email or "").strip() or None
+        lit.s2_api_key_env = (form.s2_api_key_env or "").strip() or "S2_API_KEY"
+        lit.daily_arxiv_language = language
+        if form.clear_s2_api_key:
+            lit.s2_api_key = None
+        elif form.s2_api_key is not None and form.s2_api_key.strip():
+            lit.s2_api_key = form.s2_api_key.strip()
+        save_global_config(settings)
+        return {
+            "ok": True,
+            "available": True,
+            "email": lit.email or "",
+            "unpaywall_email": lit.unpaywall_email or "",
+            "s2_api_key_env": lit.s2_api_key_env,
+            "s2_key_status": "env" if os.environ.get(lit.s2_api_key_env or "S2_API_KEY") else (
+                "config" if lit.s2_api_key else "missing"
+            ),
+            "daily_arxiv_language": lit.daily_arxiv_language,
+            "path": str(global_config_path()),
+            "note": "已保存到本机 ~/.sciforge/config.toml（0600）",
+        }
+
+    # ---------------------------- GPU 服务器配置（GUI） ----------------------------
+    @app.post("/api/servers")
+    def api_server_save(form: ServerForm) -> dict[str, Any]:
+        name = (form.name or "").strip()
+        host = (form.host or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", name):
+            raise HTTPException(status_code=400, detail="服务器名称只能包含字母/数字/下划线/点/短横线（1-40 字符）")
+        if not host:
+            raise HTTPException(status_code=400, detail="host 不能为空")
+        if form.scheduler not in ("none", "slurm"):
+            raise HTTPException(status_code=400, detail="scheduler 只能是 none 或 slurm")
+        try:
+            server = ServerConfig(**form.model_dump())
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"服务器配置不合法：{exc}") from exc
+        servers = [existing for existing in settings.servers if existing.name != name]
+        servers.append(server)
+        settings.servers = servers
+        save_global_config(settings)
+        return {
+            "ok": True,
+            "available": True,
+            "server": _server_public(server),
+            "count": len(settings.servers),
+            "servers": [_server_public(item) for item in settings.servers],
+            "path": str(global_config_path()),
+            "note": "已保存到本机 ~/.sciforge/config.toml（0600）",
+        }
+
+    @app.delete("/api/servers/{name}")
+    def api_server_delete(name: str) -> dict[str, Any]:
+        remaining = [server for server in settings.servers if server.name != name]
+        if len(remaining) == len(settings.servers):
+            raise HTTPException(status_code=404, detail=f"服务器不存在：{name}")
+        settings.servers = remaining
+        save_global_config(settings)
+        return {
+            "ok": True,
+            "available": True,
+            "count": len(remaining),
+            "servers": [_server_public(item) for item in remaining],
+        }
+
+    @app.post("/api/servers/{name}/test")
+    def api_server_test(name: str) -> dict[str, Any]:
+        server = settings.server(name)
+        if server is None:
+            raise HTTPException(status_code=404, detail=f"服务器不存在：{name}")
+        try:
+            from sciforge.tools.remote import SSHExecutor
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "ok": False,
+                "available": False,
+                "server": name,
+                "error": f"远程执行模块未就绪：{type(exc).__name__}: {exc}",
+            }
+        started = time.monotonic()
+        box: dict[str, Any] = {}
+
+        def probe() -> None:
+            try:
+                box["result"] = SSHExecutor(server).check(timeout=20)
+            except Exception as exc:  # noqa: BLE001
+                box["error"] = f"{type(exc).__name__}: {_mask_url(str(exc))[:600]}"
+
+        thread = threading.Thread(target=probe, name="sciforge-ssh-test", daemon=True)
+        thread.start()
+        thread.join(timeout=30)
+        if thread.is_alive():
+            return {
+                "ok": False,
+                "available": True,
+                "server": name,
+                "error": "SSH 探测超时（>30s）：请检查 host/端口/VPN/私钥",
+                "latency_ms": 30000,
+            }
+        if "error" in box:
+            return {"ok": False, "available": True, "server": name, "error": box["error"]}
+        info = box.get("result") or {}
+        return {
+            "ok": bool(info.get("ok")),
+            "available": True,
+            "server": name,
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "info": _jsonable(info, max_str=3000),
+            "error": info.get("error"),
         }
 
     # ---------------------------- Pipeline ----------------------------

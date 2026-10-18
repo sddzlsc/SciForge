@@ -407,6 +407,10 @@ class SkillManager:
   - `POST /api/pipeline/run` → 启动（后台线程）并返回 run_id；配合 `GET /api/pipeline/{run_id}` 轮询
   - `GET /figures/{path}` / `GET /files/{path}`：安全地暴露项目内产物
 - 静态页面：`sciforge/web/static/index.html`（无构建步骤，vanilla JS/CSS）。
+- 配置类端点（GUI 填空配置，写入 `~/.sciforge/config.toml`，密钥不回传浏览器）：
+  `GET/POST /api/llm`、`POST/DELETE /api/llm/providers`、`POST /api/llm/roles`、`POST /api/llm/test`；
+  `POST /api/servers`、`DELETE /api/servers/{name}`、`POST /api/servers/{name}/test`；
+  `GET/POST /api/literature/config`。
 - 实现可额外提供前端所需端点（不属于契约、不破坏上述约定）：`/api/recipes`、
   `/api/literature/search`、`/api/library/add`、`/api/paper/read`、`/api/gpu`、
   `/api/artifacts`、`POST /api/skills/install-dsh`、`POST /api/skills/install`、

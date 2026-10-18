@@ -588,7 +588,10 @@ def _openalex_work_by_doi(
 def _s2_api_key(settings: Any = None) -> str:
     cfg = _lit_settings(settings)
     env_name = str(getattr(cfg, "s2_api_key_env", None) or "S2_API_KEY")
-    return os.environ.get(env_name, "").strip()
+    env_value = os.environ.get(env_name, "").strip()
+    if env_value:
+        return env_value
+    return str(getattr(cfg, "s2_api_key", "") or "").strip()
 
 
 def _s2_record(paper: dict[str, Any]) -> PaperRecord | None:

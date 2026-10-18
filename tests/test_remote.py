@@ -1031,3 +1031,54 @@ def test_password_execute_passes_askpass_kwargs() -> None:
     captured.clear()
     plain.run_raw("true")
     assert "env" not in captured
+
+
+# ---------------------------------------------------------------------------
+# 远端实验指标
+# ---------------------------------------------------------------------------
+
+
+def test_parse_metrics_payload_variants() -> None:
+    from sciforge.tools.remote import parse_metrics_payload
+
+    scalar = parse_metrics_payload('{"loss": 1.25, "acc": 0.81, "step": 100}')
+    assert scalar["latest"] == {"loss": 1.25, "acc": 0.81, "step": 100}
+
+    history = parse_metrics_payload('{"history": [{"step": 1, "loss": 1.0}, {"step": 2, "loss": 0.8}]}')
+    assert history["points"] == 2
+    assert history["series"]["loss"] == [1.0, 0.8]
+    assert history["latest"]["loss"] == 0.8
+
+    jsonl = parse_metrics_payload('\n'.join(['{"loss": 2.0, "acc": 0.5}', '{"loss": 1.5, "acc": 0.7}']))
+    assert jsonl["series"]["acc"] == [0.5, 0.7]
+    assert jsonl["latest"]["loss"] == 1.5
+
+    lists = parse_metrics_payload('{"loss": [1.0, 0.9, 0.8], "note": "ok"}')
+    assert lists["series"]["loss"] == [1.0, 0.9, 0.8]
+    assert lists["latest"]["loss"] == 0.8
+
+    assert parse_metrics_payload("")["error"]
+    assert parse_metrics_payload("not json at all")["error"]
+
+
+def test_read_remote_metrics_discovers_and_parses(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sciforge.config import ServerConfig
+    from sciforge.tools.remote import RemoteResult, read_remote_metrics
+
+    server = ServerConfig(name="gpu1", host="h", user="root")
+    calls: dict = {}
+
+    def fake_run_raw(self, command, timeout=None):  # noqa: ANN001, ANN002
+        calls.setdefault("commands", []).append(command)
+        if command.startswith("ls -t"):
+            return RemoteResult(0, "~/sciforge/runs/exp1/metrics.json\n", "")
+        if command.startswith("cat"):
+            return RemoteResult(0, '{"step": 10, "loss": 0.42, "acc": 0.91}', "")
+        return RemoteResult(0, "", "")
+
+    monkeypatch.setattr("sciforge.tools.remote.SSHExecutor.run_raw", fake_run_raw)
+    info = read_remote_metrics(server)
+    assert info["ok"] is True
+    assert info["path"].endswith("metrics.json")
+    assert info["latest"]["loss"] == 0.42
+    assert any(command.startswith("cat") for command in calls["commands"])

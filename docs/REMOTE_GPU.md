@@ -77,6 +77,32 @@ ssh -p 48322 root@connect.bjb2.seetacloud.com
 | `Connection timed out` | 端口/地址错误，或需要先连 VPN；检查 `-p` 端口与 host |
 | 想换回 Key 登录 | 清除密码（勾选「清除已存密码」），私钥路径填对，保存并测试 |
 
+## 2.6 在对话里操作 GPU（上传 / 下载 / 实时指标）
+
+对话页的 Agent 已接入远程工具，用自然语言即可操作，例如：
+
+```text
+查看 GPU 状态，告诉我显存和利用率
+把 uploads/ 里的实验代码传到 GPU，然后启动训练
+把远端 runs/exp1/metrics.json 和 train.log 下载回来
+看一下现在最新实验的指标，loss 趋势正常吗？要不要停？
+tail 一下远端训练日志最后 50 行
+```
+
+对应工具：
+
+| 需求 | 工具 | 说明 |
+|---|---|---|
+| 看 GPU | `gpu_status` | nvidia-smi 解析；无服务器时本机 MPS 降级 |
+| 上传 / 下载 | `remote_sync` | `direction=upload/download`；下载结果会出现在工具卡「⬇ 下载」 |
+| 看实时指标 | `remote_metrics` | 默认自动发现最新 `runs/*/metrics.json`，返回最新值 + 历史序列 |
+| 看日志 | `remote_tail` | tail 远端日志 |
+| 任务状态 | `exp_status` / `exp_jobs` | tmux / Slurm 状态 |
+| 提交 Slurm | `slurm_submit/status/logs` | 集群环境 |
+
+另外「实验」页新增 **GPU 实时指标** 面板：选服务器 + 指标路径（留空自动发现），
+支持每 5 秒自动刷新，直接画 loss/准确率曲线。
+
 ## 3. 文件同步
 
 ```bash

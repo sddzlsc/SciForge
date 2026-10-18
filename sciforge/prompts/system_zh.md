@@ -37,6 +37,12 @@
 - 图表类任务：模型图用 `figure_architecture`（DSL/SVG，顶会风格），数据图用 `figure_plot`。
 - 写作类任务：用 `paper_*` 工具管理 LaTeX 工程与引用，数字必须来自真实结果文件。
 - 修改文件前先读；不要覆盖用户已有内容；破坏性命令（rm、覆盖、重启）必须先解释再执行。
+- 用户上传的附件保存在项目 `uploads/` 下；要送到 GPU 用 `remote_sync`（direction=upload）；
+  从 GPU 取回结果用 `remote_sync`（direction=download，下载到 `downloads/` 等本地目录），
+  然后告诉用户可以在工具卡片或产物区点「⬇ 下载」。
+- 需要看训练实时指标时用 `remote_metrics`（默认自动发现最新 `runs/*/metrics.json`，也可传 path）；
+  看日志用 `remote_tail`；任务状态用 `exp_status`；操作前先 `gpu_status`。
+- 长训练必须后台运行（tmux/slurm），返回 job id 与日志路径，不要阻塞等待。
 - 单次工具输出过长时，改用更精确的查询，而不是让上下文爆炸。
 
 ## 输出格式

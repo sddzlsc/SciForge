@@ -27,6 +27,7 @@
     llm: { loaded: false, providers: [], roles: {}, default: '' },
     gpuProbed: false,
     pipe: { runId: null, timer: null, last: null },
+    metrics: { timer: null, data: null },
     artifactsLoaded: false,
     skillsLoaded: false,
   };
@@ -294,6 +295,7 @@
     if (page === 'llm') loadLlmPage();
     if (page === 'servers') loadServersPage();
     if (page === 'experiments') loadExperimentsPage();
+    if (page !== 'experiments') stopMetricsAuto();
     if (page === 'figures' && !state.artifactsLoaded) loadArtifacts();
     if (page === 'skills' && !state.skillsLoaded) loadSkills('');
     if (page === 'about') renderAbout();
@@ -553,7 +555,8 @@
         html += '<div class="tool-section-label">产物</div><div class="file-links">' +
           artifacts.map((path) => {
             const name = String(path).split('/').pop();
-            return '<a class="file-link" href="/files/' + encodeURI(String(path)) + '" target="_blank" rel="noopener">📎 ' + escapeHtml(name) + '</a>';
+            return '<a class="file-link" href="/files/' + encodeURI(String(path)) + '" target="_blank" rel="noopener">📎 ' + escapeHtml(name) + '</a>' +
+              '<a class="file-link" href="/api/download/' + encodeURI(String(path)) + '">⬇ 下载</a>';
           }).join('') + '</div>';
       }
       slot.innerHTML = html;
@@ -1700,6 +1703,158 @@
   async function loadExperimentsPage() {
     await loadRecipes();
     await loadRuns();
+    await loadMetricsServers();
+    fetchMetrics();
+  }
+
+  /* ---------------------------------- GPU 实时指标 ---------------------------------- */
+  async function loadMetricsServers() {
+    const select = $('#metrics-server');
+    if (!select) return;
+    try {
+      const data = await api('/api/servers');
+      const current = select.value;
+      select.innerHTML = (data.servers || []).map((item) =>
+        '<option value="' + escapeHtml(item.name) + '">' + escapeHtml(item.name) + ' — ' + escapeHtml(item.host) + '</option>'
+      ).join('') || '<option value="">（请先在服务器页添加 GPU）</option>';
+      if (current) select.value = current;
+    } catch (err) { /* 服务器读取失败时保留空选项 */ }
+  }
+
+  function stopMetricsAuto() {
+    if (state.metrics.timer) {
+      clearInterval(state.metrics.timer);
+      state.metrics.timer = null;
+    }
+    const toggle = $('#metrics-auto');
+    if (toggle) toggle.checked = false;
+  }
+
+  async function fetchMetrics() {
+    const server = $('#metrics-server').value;
+    const notice = $('#metrics-notice');
+    const summary = $('#metrics-summary');
+    notice.classList.remove('hidden');
+    if (!server) {
+      notice.innerHTML = noticeHtml('请先在「服务器」页添加并测试 GPU 服务器', 'warn');
+      summary.innerHTML = '';
+      $('#metrics-chart-wrap').classList.add('hidden');
+      return;
+    }
+    notice.innerHTML = noticeHtml('正在读取 ' + server + ' 上的实验指标…', 'info');
+    try {
+      const query = $('#metrics-path').value.trim();
+      const data = await api('/api/servers/' + encodeURIComponent(server) + '/metrics' + (query ? '?path=' + encodeURIComponent(query) : ''));
+      if (!data.available) {
+        notice.innerHTML = noticeHtml(data.error || '远程模块未就绪', 'warn');
+        return;
+      }
+      if (!data.ok) {
+        notice.innerHTML = noticeHtml('读取指标失败：' + (data.error || '未知错误'), 'warn');
+        summary.innerHTML = '';
+        $('#metrics-chart-wrap').classList.add('hidden');
+        return;
+      }
+      notice.innerHTML = noticeHtml(
+        '已读取 ' + (data.path || '') + ' · ' + (data.points || 0) + ' 个记录点 · 延迟 ' + (data.latency_s || 0) + 's' +
+        (data.warning ? ' · ' + data.warning : ''), 'info');
+      state.metrics.data = data;
+      renderMetricsSummary(data);
+      renderMetricsChart(data);
+      $('#metrics-raw').textContent = data.raw_preview || JSON.stringify(data.latest || {}, null, 2);
+    } catch (err) {
+      notice.innerHTML = noticeHtml('读取指标失败：' + err.message, 'err');
+    }
+  }
+
+  function renderMetricsSummary(data) {
+    const summary = $('#metrics-summary');
+    const latest = data.latest || {};
+    const keys = Object.keys(latest).slice(0, 8);
+    summary.innerHTML = keys.length
+      ? keys.map((key) => '<div class="gpu-pill"><span>' + escapeHtml(key) + '</span><strong>' + escapeHtml(String(latest[key])) + '</strong></div>').join('')
+      : '';
+  }
+
+  function renderMetricsChart(data) {
+    const series = data.series || {};
+    const wrap = $('#metrics-chart-wrap');
+    const canvas = $('#metrics-chart');
+    const names = Object.keys(series).filter((key) => Array.isArray(series[key]) && series[key].length > 1).slice(0, 3);
+    if (!names.length) {
+      wrap.classList.add('hidden');
+      return;
+    }
+    wrap.classList.remove('hidden');
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = Math.max(320, wrap.clientWidth || canvas.parentElement.clientWidth || 720);
+    const cssHeight = 220;
+    canvas.width = Math.round(cssWidth * dpr);
+    canvas.height = Math.round(cssHeight * dpr);
+    canvas.style.width = '100%';
+    canvas.style.height = cssHeight + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+    const pad = { left: 46, right: 12, top: 14, bottom: 26 };
+    const width = cssWidth - pad.left - pad.right;
+    const height = cssHeight - pad.top - pad.bottom;
+    let min = Infinity;
+    let max = -Infinity;
+    names.forEach((key) => series[key].forEach((value) => {
+      if (typeof value === 'number') { min = Math.min(min, value); max = Math.max(max, value); }
+    }));
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+    if (min === max) { max = min + 1; }
+    const xOf = (index, total) => pad.left + (total <= 1 ? 0 : (index / (total - 1)) * width);
+    const yOf = (value) => pad.top + height - ((value - min) / (max - min)) * height;
+    const colors = ['#22d3ee', '#f59e0b', '#a3e635'];
+    // 网格
+    ctx.strokeStyle = 'rgba(148,163,184,0.18)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i += 1) {
+      const y = pad.top + (i / 4) * height;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + width, y); ctx.stroke();
+      ctx.fillStyle = 'rgba(148,163,184,0.8)';
+      ctx.font = '10px ui-monospace, monospace';
+      const value = max - ((max - min) * i) / 4;
+      ctx.fillText(value.toFixed(Math.abs(value) < 10 ? 2 : 1), 4, y + 3);
+    }
+    names.forEach((key, seriesIndex) => {
+      const values = series[key].filter((value) => typeof value === 'number');
+      ctx.strokeStyle = colors[seriesIndex % colors.length];
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      values.forEach((value, index) => {
+        const x = xOf(index, values.length);
+        const y = yOf(value);
+        if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.fillStyle = colors[seriesIndex % colors.length];
+      ctx.font = '10.5px ui-monospace, monospace';
+      ctx.fillText(key, pad.left + 8 + seriesIndex * 110, pad.top + 11);
+    });
+    ctx.fillStyle = 'rgba(148,163,184,0.7)';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillText('step →', pad.left + width - 42, cssHeight - 8);
+  }
+
+  function bindMetrics() {
+    const auto = $('#metrics-auto');
+    if (auto) {
+      auto.addEventListener('change', () => {
+        stopMetricsAuto();
+        if (auto.checked) {
+          state.metrics.timer = setInterval(fetchMetrics, 5000);
+          fetchMetrics();
+        }
+      });
+    }
+    const refresh = $('#metrics-refresh');
+    if (refresh) refresh.addEventListener('click', fetchMetrics);
+    const server = $('#metrics-server');
+    if (server) server.addEventListener('change', fetchMetrics);
   }
 
   function bindExperiments() {
@@ -2187,6 +2342,7 @@
     bindServers();
     bindLlm();
     bindExperiments();
+    bindMetrics();
     bindFigures();
     bindSkills();
     loadHealth();

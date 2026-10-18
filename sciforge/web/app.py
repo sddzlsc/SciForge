@@ -1044,8 +1044,14 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             if state["closed"]:
                 return
             try:
+                payload = event.payload
+                if event.kind == "tool_result" and isinstance(payload, dict):
+                    payload = dict(payload)
+                    payload["artifacts"] = _rel_artifacts(
+                        project_dir, [str(item) for item in (payload.get("artifacts") or [])]
+                    )
                 event_queue.put_nowait(
-                    {"kind": event.kind, "payload": _jsonable(event.payload, max_str=6000), "ts": event.ts}
+                    {"kind": event.kind, "payload": _jsonable(payload, max_str=6000), "ts": event.ts}
                 )
             except queue.Full:
                 pass
@@ -1598,6 +1604,55 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "content": (getattr(response, "content", "") or "")[:1200],
             "usage": _jsonable(getattr(response, "usage", None), max_str=2000),
         }
+
+    # ---------------------------- 下载 / 指标 ----------------------------
+    @app.get("/api/download/{path:path}")
+    def api_download(path: str):  # noqa: ANN202
+        """以浏览器下载方式返回项目内文件（工具产物 / GPU 同步结果）。"""
+        target = _safe_join(project_dir, path)
+        return FileResponse(
+            target,
+            filename=target.name,
+            media_type="application/octet-stream",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/api/servers/{name}/metrics")
+    def api_server_metrics(name: str, path: str | None = None) -> dict[str, Any]:
+        """读取 GPU 服务器上的实验指标（默认自动发现最新 metrics.json）。"""
+        server = settings.server(name)
+        if server is None:
+            raise HTTPException(status_code=404, detail=f"服务器不存在：{name}")
+        try:
+            from sciforge.tools.remote import read_remote_metrics
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "available": False, "server": name, "error": f"远程模块未就绪：{exc}"}
+        started = time.monotonic()
+        box: dict[str, Any] = {}
+
+        def probe() -> None:
+            try:
+                box["info"] = read_remote_metrics(server, path, timeout=20)
+            except Exception as exc:  # noqa: BLE001
+                box["error"] = f"{type(exc).__name__}: {_mask_url(str(exc))[:600]}"
+
+        thread = threading.Thread(target=probe, name=f"sciforge-metrics-{name}", daemon=True)
+        thread.start()
+        thread.join(timeout=30)
+        if thread.is_alive():
+            return {
+                "ok": False,
+                "available": True,
+                "server": name,
+                "error": "读取指标超时（>30s）：检查服务器连通性或 metrics 路径",
+                "latency_s": 30,
+            }
+        if "error" in box:
+            return {"ok": False, "available": True, "server": name, "error": box["error"]}
+        info = box.get("info") or {}
+        info["available"] = True
+        info["latency_s"] = round(time.monotonic() - started, 2)
+        return info
 
     # ---------------------------- 文件上传（对话附件 / GPU） ----------------------------
     @app.post("/api/upload")

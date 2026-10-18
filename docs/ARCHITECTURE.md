@@ -411,7 +411,8 @@ class SkillManager:
   `GET/POST /api/llm`、`POST/DELETE /api/llm/providers`、`POST /api/llm/roles`、`POST /api/llm/test`；
   `POST /api/servers`、`DELETE /api/servers/{name}`、`POST /api/servers/{name}/test`；
   `GET/POST /api/literature/config`；
-  `POST /api/upload`（对话附件）、`POST /api/servers/{name}/upload`（上传到 GPU）。
+  `POST /api/upload`（对话附件）、`POST /api/servers/{name}/upload`（上传到 GPU）；
+  `GET /api/download/{path}`（浏览器下载项目文件）、`GET /api/servers/{name}/metrics`（GPU 实时指标）。
 - 实现可额外提供前端所需端点（不属于契约、不破坏上述约定）：`/api/recipes`、
   `/api/literature/search`、`/api/library/add`、`/api/paper/read`、`/api/gpu`、
   `/api/artifacts`、`POST /api/skills/install-dsh`、`POST /api/skills/install`、

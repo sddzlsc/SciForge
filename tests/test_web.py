@@ -953,3 +953,40 @@ def test_server_upload_endpoint(client: TestClient, project: Path, monkeypatch: 
         files=[("files", ("a.txt", b"x", "text/plain"))],
     )
     assert missing.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 下载 / GPU 实时指标
+# ---------------------------------------------------------------------------
+
+
+def test_download_endpoint(client: TestClient, project: Path) -> None:
+    target = project / "results" / "demo.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text('{"ok": true}', encoding="utf-8")
+    resp = client.get("/api/download/results/demo.json")
+    assert resp.status_code == 200
+    assert resp.headers.get("content-disposition", "").startswith("attachment")
+    assert resp.content == b'{"ok": true}'
+    assert client.get("/api/download/../etc/passwd").status_code == 404
+
+
+def test_server_metrics_endpoint(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    client.post("/api/servers", json={"name": "gpu-m", "host": "10.0.0.2", "user": "root"})
+
+    def fake_read(server, path=None, **kwargs):  # noqa: ANN001, ANN003
+        return {
+            "ok": True,
+            "server": server.name,
+            "path": path or "~/sciforge/runs/exp1/metrics.json",
+            "latest": {"step": 10, "loss": 0.42},
+            "series": {"loss": [1.0, 0.42]},
+            "points": 2,
+        }
+
+    monkeypatch.setattr("sciforge.tools.remote.read_remote_metrics", fake_read)
+    data = client.get("/api/servers/gpu-m/metrics").json()
+    assert data["ok"] is True
+    assert data["latest"]["loss"] == 0.42
+    assert data["available"] is True
+    assert client.get("/api/servers/nope/metrics").status_code == 404

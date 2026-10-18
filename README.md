@@ -108,7 +108,9 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 
 实跑截图（由 `sciforge gui` 启动后截取）：
 
-![GUI 对话：流式工具调用 + 附件上传](examples/demo/screenshots/gui-chat-attachments.png)
+![GUI 对话：流式工具调用 + 附件上传 + GPU 操作](examples/demo/screenshots/gui-chat-attachments.png)
+
+![对话内直接操作 GPU / 查看实验指标](examples/demo/screenshots/gui-gpu-chat.png)
 
 ![GUI 文献：实时 arXiv 与 demo fixtures](examples/demo/screenshots/live-console-literature.png)
 

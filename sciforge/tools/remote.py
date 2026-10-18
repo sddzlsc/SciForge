@@ -1604,15 +1604,183 @@ class RemoteSyncTool(BaseTool):
                 [str(p) for p in paths], local_dir, delete=delete, excludes=excludes
             )
             target = str(local_dir)
+            downloaded = [
+                str(local_dir / Path(str(item)).name)
+                for item in paths
+                if (local_dir / Path(str(item)).name).is_file()
+            ]
         if not result.ok:
             return ToolResult.failure(
                 f"同步失败（rc={result.rc}）：{(result.stderr or result.stdout).strip()[:800]}",
                 content=result.stderr[:2000],
             )
+        artifacts = downloaded if direction == "download" else []
         return ToolResult.success(
             f"同步完成（{direction} → {target}）\n{(result.stdout or '').strip()[-2000:]}",
             data={**result.to_dict(), "server": server.name, "direction": direction, "target": target},
+            artifacts=artifacts,
         )
+
+
+METRICS_DISCOVERY = (
+    "ls -t "
+    "{workdir}/runs/*/metrics.json {workdir}/runs/*/*/metrics.json "
+    "{workdir}/metrics.json {workdir}/*/metrics.json 2>/dev/null | head -5"
+)
+
+
+def parse_metrics_payload(raw: str) -> dict[str, Any]:
+    """把 metrics.json / JSONL / 历史记录解析成 latest + series，供工具与 GUI 复用。"""
+    text = (raw or "").strip()
+    if not text:
+        return {"latest": {}, "series": {}, "points": 0, "error": "指标文件为空"}
+    data: Any = None
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        rows: list[dict[str, Any]] = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(item, dict):
+                rows.append(item)
+        if rows:
+            data = rows
+    if data is None:
+        return {"latest": {}, "series": {}, "points": 0, "error": "不是可解析的 JSON / JSONL 指标"}
+
+    # 常见包装：{"history": [...]} / {"epochs": [...]} / {"metrics": [...]}
+    if isinstance(data, dict):
+        for key in ("history", "epochs", "records", "steps", "metrics", "log"):
+            if isinstance(data.get(key), list):
+                data = data[key]
+                break
+
+    def numeric(value: Any) -> bool:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+    if isinstance(data, list):
+        rows = [row for row in data if isinstance(row, dict)]
+        if not rows:
+            return {"latest": {}, "series": {}, "points": 0}
+        series: dict[str, list[float]] = {}
+        latest: dict[str, Any] = {}
+        for row in rows:
+            for key, value in row.items():
+                if numeric(value):
+                    series.setdefault(str(key), []).append(float(value))
+                    latest[str(key)] = value
+        return {"latest": latest, "series": series, "points": len(rows)}
+
+    latest = {}
+    series = {}
+    for key, value in data.items():
+        if numeric(value):
+            latest[str(key)] = value
+        elif isinstance(value, list) and value and all(numeric(item) for item in value):
+            series[str(key)] = [float(item) for item in value]
+            latest[str(key)] = value[-1]
+    points = max((len(values) for values in series.values()), default=1)
+    return {"latest": latest, "series": series, "points": points}
+
+
+def read_remote_metrics(
+    server: ServerConfig,
+    path: str | None = None,
+    *,
+    timeout: float = 25,
+) -> dict[str, Any]:
+    """读取远端实验指标；未给 path 时自动找最新的 runs/*/metrics.json。"""
+    executor = SSHExecutor(server)
+    target = str(path or "").strip()
+    if not target:
+        discovery = METRICS_DISCOVERY.format(workdir=executor.workdir.rstrip("/"))
+        found = executor.run_raw(discovery, timeout=timeout)
+        candidates = [line.strip() for line in (found.stdout or "").splitlines() if line.strip()]
+        if not candidates:
+            return {
+                "ok": False,
+                "server": server.name,
+                "error": (
+                    "未在服务器找到 metrics.json。请确认训练脚本把指标写到 "
+                    f"{executor.workdir}/runs/<run>/metrics.json，或手动指定 path。"
+                ),
+            }
+        target = candidates[0]
+    remote_path, warning = resolve_remote_path(target, executor.workdir, allow_outside=True)
+    result = executor.run_raw(f"cat {quote_path(remote_path)}", timeout=timeout)
+    if not result.ok:
+        return {
+            "ok": False,
+            "server": server.name,
+            "path": remote_path,
+            "error": f"读取指标失败：{(result.stderr or result.stdout).strip()[:600]}",
+        }
+    parsed = parse_metrics_payload(result.stdout)
+    return {
+        "ok": "error" not in parsed,
+        "server": server.name,
+        "path": remote_path,
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "warning": warning,
+        "raw_preview": (result.stdout or "")[:3000],
+        **parsed,
+    }
+
+
+class RemoteMetricsTool(BaseTool):
+    name = "remote_metrics"
+    description = (
+        "读取 GPU 服务器上的实验指标（默认自动找最新 runs/*/metrics.json），返回最新数值与历史序列，"
+        "用于实时监控训练进度。何时用：用户问「现在指标怎么样/训练到哪了/损失降了吗」，"
+        "或需要根据实时期指标决定是否停止/调整实验时。"
+    )
+    tags = ("remote", "experiment")
+    requires = ("ssh",)
+    parameters = {
+        "type": "object",
+        "properties": {
+            "server": {"type": "string", "description": "服务器名（默认第一个）"},
+            "path": {
+                "type": "string",
+                "description": "远端 metrics.json 路径（相对 workdir 或绝对路径）；留空自动发现最新",
+            },
+        },
+    }
+
+    def run(self, ctx: ToolContext, **kwargs: Any) -> ToolResult:
+        server, failure = _server_or_fail(ctx, kwargs.get("server"), tool=self.name)
+        if failure:
+            return failure
+        assert server is not None
+        info = read_remote_metrics(server, kwargs.get("path"))
+        if not info.get("ok"):
+            return ToolResult.failure(str(info.get("error") or "读取指标失败"))
+        latest = info.get("latest") or {}
+        series = info.get("series") or {}
+        lines = [f"## 实验指标：{info.get('path')}", "", f"- 服务器：{server.name}"]
+        if latest:
+            lines.append("")
+            lines.append("| 指标 | 最新值 |")
+            lines.append("|---|---|")
+            for key, value in latest.items():
+                lines.append(f"| {key} | {value} |")
+        if series:
+            lines.append("")
+            lines.append(f"- 历史序列：{', '.join(f'{key}({len(values)} 点)' for key, values in series.items())}")
+        return ToolResult.success(
+            "\n".join(lines),
+            data=info,
+            display=f"{len(latest)} 个指标 · {info.get('points')} 个记录点",
+        )
+
+
+register_tool(RemoteMetricsTool())
 
 
 class RemoteTailTool(BaseTool):
@@ -2316,6 +2484,8 @@ __all__ = [
     "parse_tmux_sessions",
     "parse_sbatch_output",
     "parse_check_output",
+    "parse_metrics_payload",
+    "read_remote_metrics",
     "is_dangerous_command",
     "ensure_safe_command",
     "resolve_remote_path",

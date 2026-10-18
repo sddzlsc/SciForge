@@ -106,6 +106,9 @@
                 <button class="chip" type="button" data-prompt="为我的「自适应 token 路由视频扩散模型」画一张 CVPR 风格的模型架构图，给出 architecture spec。">🎨 生成模型图</button>
                 <button class="chip" type="button" data-demo="tools" data-prompt="演示一次真实的工具调用：读取离线 demo 论文片段并展示工具卡片。">🧰 工具演示</button>
                 <button class="chip" type="button" data-prompt="把这周的实验进展整理成一份中文周报：完成了什么、指标如何、卡在哪里、下周计划。">🗓️ 周报</button>
+                <button class="chip" type="button" data-prompt="查看 GPU 服务器状态：用 gpu_status 告诉我显卡型号、显存占用、利用率和现在是否适合启动新实验。">🖥️ GPU 状态</button>
+                <button class="chip" type="button" data-prompt="用 remote_metrics 查看 GPU 上最新实验的指标，总结 loss/准确率趋势，判断训练是否正常，并给出是否继续/停止的建议。">📈 实验指标</button>
+                <button class="chip" type="button" data-prompt="用 remote_sync 把 uploads/ 里我刚上传的附件传到 GPU 服务器 workdir，并列出远端路径；如果用户要结果，再用 remote_sync download 把最新 metrics/日志取回项目。">📤 GPU 传文件</button>
               </div>
               <div class="chat-toolbar-right">
                 <label class="switch" title="离线 Mock：不调用真实 API，用于演示 / 测试">
@@ -377,6 +380,26 @@
               <pre id="pipe-events" class="code-block"></pre>
             </details>
             <div id="pipe-artifacts"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>GPU 实时指标</h2>
+              <div class="panel-actions">
+                <label class="switch"><input type="checkbox" id="metrics-auto"><span class="switch-track"></span><span class="switch-text">自动刷新 5s</span></label>
+                <button id="metrics-refresh" class="btn btn-ghost btn-sm" type="button">刷新</button>
+              </div>
+            </div>
+            <div class="run-form">
+              <label class="field"><span>服务器</span><select id="metrics-server"></select></label>
+              <label class="field grow"><span>metrics.json 路径（留空自动发现最新）</span><input id="metrics-path" placeholder="~/sciforge/runs/exp1/metrics.json" spellcheck="false"></label>
+            </div>
+            <div id="metrics-notice" class="notice hidden"></div>
+            <div id="metrics-summary" class="gpu-summary"></div>
+            <div id="metrics-chart-wrap" class="hidden">
+              <canvas id="metrics-chart" height="220"></canvas>
+            </div>
+            <details class="fold"><summary>原始指标预览</summary><pre id="metrics-raw" class="code-block"></pre></details>
           </div>
 
           <div class="panel">

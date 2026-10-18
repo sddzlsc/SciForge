@@ -1008,6 +1008,62 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                 "recipes": default_recipes,
             }
 
+    # ---------------------------- 历史会话 ----------------------------
+    @app.get("/api/sessions")
+    def api_sessions(limit: int = 50) -> dict[str, Any]:
+        sessions_dir = project_dir / ".sciforge" / "sessions"
+        limit = max(1, min(int(limit or 50), 200))
+        items: list[dict[str, Any]] = []
+        if sessions_dir.is_dir():
+            candidates: list[tuple[float, str, dict[str, Any]]] = []
+            for path in sessions_dir.glob("*/transcript.json"):
+                session_id = path.parent.name
+                if not _SESSION_ID_RE.match(session_id):
+                    continue
+                try:
+                    mtime = path.stat().st_mtime
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if isinstance(payload, dict):
+                    candidates.append((mtime, session_id, payload))
+            candidates.sort(key=lambda item: item[0], reverse=True)
+            items = [_session_meta(project_dir, sid, payload, mtime) for mtime, sid, payload in candidates[:limit]]
+        return {
+            "ok": True,
+            "count": len(items),
+            "sessions": items,
+            "sessions_dir": str(sessions_dir),
+        }
+
+    @app.get("/api/sessions/{session_id}")
+    def api_session_detail(session_id: str) -> dict[str, Any]:
+        clean = _clean_session_id(session_id)
+        payload = _read_session_transcript(project_dir, clean or "")
+        if not payload:
+            raise HTTPException(status_code=404, detail=f"历史会话不存在：{session_id}")
+        path = _session_transcript_path(project_dir, clean or "")
+        meta = _session_meta(project_dir, clean or "", payload, path.stat().st_mtime)
+        messages = []
+        for item in payload.get("messages") or []:
+            if not isinstance(item, dict):
+                continue
+            messages.append(
+                {
+                    "role": str(item.get("role") or ""),
+                    "content": str(item.get("content") or "")[:20000],
+                    "tool_calls": [
+                        {"name": str(call.get("name") or "")}
+                        for call in (item.get("tool_calls") or [])
+                        if isinstance(call, dict)
+                    ],
+                    "name": item.get("name"),
+                }
+            )
+        meta["messages_detail"] = messages
+        meta["ok"] = True
+        return meta
+
     # ---------------------------- 对话 SSE ----------------------------
     @app.post("/api/chat")
     def api_chat(req: ChatRequest):  # noqa: ANN202
@@ -1063,6 +1119,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             stored = app.state.sessions.get(session_id)
             if stored:
                 history = list(stored.get("messages") or [])
+        if not history:
+            history = _history_from_transcript(project_dir, session_id)
 
         def worker() -> None:
             started_at = time.monotonic()
@@ -1757,10 +1815,22 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "arxiv_categories": list(getattr(lit, "arxiv_categories", []) or []),
             "search_sources": [
                 {"id": "arxiv", "name": "arXiv", "note": "预印本元数据 + 全文 PDF，最稳定"},
+                {"id": "pubmed", "name": "PubMed", "note": "医学/生命科学，NCBI E-utilities 免费"},
+                {"id": "europe_pmc", "name": "Europe PMC", "note": "生命科学 + PMC/预印本，免费 REST"},
+                {"id": "openreview", "name": "OpenReview", "note": "ICLR/NeurIPS 等会议论文与评审，免费"},
                 {"id": "daily", "name": "daily-arXiv-ai-enhanced", "note": "每日 AI 中文增强摘要"},
                 {"id": "openalex", "name": "OpenAlex", "note": "跨库元数据 + 开放获取链接"},
-                {"id": "crossref", "name": "Crossref", "note": "DOI / BibTeX 权威元数据"},
+                {"id": "crossref", "name": "Crossref", "note": "DOI / BibTeX 权威元数据；支持出版社过滤"},
                 {"id": "hf_papers", "name": "HF Papers", "note": "HuggingFace 每日/趋势论文"},
+            ],
+            "publisher_filters": [
+                {"id": "ieee", "label": "IEEE Xplore"},
+                {"id": "acm", "label": "ACM DL"},
+                {"id": "springer", "label": "SpringerLink"},
+                {"id": "elsevier", "label": "ScienceDirect"},
+                {"id": "wiley", "label": "Wiley"},
+                {"id": "taylor_francis", "label": "Taylor & Francis"},
+                {"id": "jstor", "label": "JSTOR"},
             ],
             "fulltext_sources": [
                 {"id": "arxiv_pdf", "name": "arXiv PDF", "available": True, "note": "arXiv 论文直接下载"},
@@ -2262,6 +2332,68 @@ def _install_skill(settings: Settings, name: str, target: str) -> dict[str, Any]
             "target": target,
             "error": f"安装失败：{type(exc).__name__}: {exc}",
         }
+
+
+def _session_transcript_path(project_dir: Path, session_id: str) -> Path:
+    return project_dir / ".sciforge" / "sessions" / session_id / "transcript.json"
+
+
+def _read_session_transcript(project_dir: Path, session_id: str) -> dict[str, Any] | None:
+    path = _session_transcript_path(project_dir, session_id)
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _history_from_transcript(project_dir: Path, session_id: str, limit: int = 12) -> list[ChatMessage]:
+    """从 transcript.json 恢复干净对话历史（仅 user/assistant 文本，避免工具配对问题）。"""
+    payload = _read_session_transcript(project_dir, session_id)
+    if not payload:
+        return []
+    history: list[ChatMessage] = []
+    for message in payload.get("messages") or []:
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get("role") or "")
+        if role not in ("user", "assistant"):
+            continue
+        if message.get("tool_calls"):
+            continue
+        content = str(message.get("content") or "").strip()
+        if content:
+            history.append(ChatMessage(role=role, content=content))
+    return history[-limit:]
+
+
+def _session_meta(project_dir: Path, session_id: str, payload: dict[str, Any], mtime: float) -> dict[str, Any]:
+    messages = [item for item in (payload.get("messages") or []) if isinstance(item, dict)]
+    first_user = next((str(item.get("content") or "") for item in messages if item.get("role") == "user"), "")
+    last_assistant = next(
+        (str(item.get("content") or "") for item in reversed(messages) if item.get("role") == "assistant"),
+        "",
+    )
+    created = payload.get("created_at")
+    try:
+        created_iso = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(float(created)))
+    except (TypeError, ValueError, OSError):
+        created_iso = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(mtime))
+    return {
+        "session_id": session_id,
+        "source": "web" if session_id.startswith("web-") else ("cli" if session_id.startswith("cli-") else "session"),
+        "created_at": created_iso,
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(mtime)),
+        "task": str(payload.get("task") or first_user)[:200],
+        "preview": (first_user or last_assistant).replace("\n", " ")[:160],
+        "steps": int(payload.get("steps") or 0),
+        "tool_calls": int(payload.get("tool_calls") or 0),
+        "messages": len([item for item in messages if item.get("role") in ("user", "assistant")]),
+        "usage": payload.get("usage") or {},
+        "status": str(payload.get("stopped_reason") or ""),
+    }
 
 
 def _store_history(app: FastAPI, session_id: str, result: Any) -> None:

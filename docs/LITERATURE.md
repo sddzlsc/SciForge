@@ -1,102 +1,106 @@
-# 文献获取：渠道、全文与配置
+# 文献检索：免费数据源清单与配置
 
-> 状态：2026-10-18 实测。**零配置即可用**；不集成 Sci-Hub 等未授权镜像（见下）。
+> 目标：在不购买数据库、不绕过付费墙的前提下，尽可能覆盖题录、摘要与合法全文。
+> 本页同时说明你列出的数据库里**哪些可以直接接、哪些只能查到题录、哪些没有公开接口**。
 
-## 一、检索渠道（实测）
+## 一、已接入的免费 API（零 Key 即可用）
 
-| 渠道 | 能拿到什么 | 需要 Key | 实测 |
+| 渠道 | 覆盖 | 能拿到 | Key |
 |---|---|---|---|
-| **arXiv** | 预印本元数据 + 摘要 + 全文 PDF，AI 论文最新最全 | 否 | ✅ 可用（默认） |
-| **daily-arXiv-ai-enhanced** | 每日 arXiv 精选 + DeepSeek 中文增强摘要 | 否 | ✅ 可用 |
-| **OpenAlex** | 跨库元数据、DOI、开放获取链接 | 否（填邮箱更稳） | ✅ 可用 |
-| **Crossref** | DOI 权威元数据、BibTeX 基础字段 | 否 | ✅ 可用 |
-| **HF Papers** | HuggingFace 每日/趋势论文 | 否 | ✅ 可用 |
+| **arXiv** | 物理/CS/数学/AI 预印本 | 题录 + 摘要 + 全文 PDF | 否 |
+| **OpenAlex** | 2.5 亿+ 学术作品，跨库 | 题录、作者、DOI、开放获取链接 | 否（填邮箱更稳） |
+| **Crossref** | 全 DOI 元数据 | 权威题录、BibTeX、部分摘要 | 否 |
+| **PubMed** | 医学 / 生命科学 | 题录 + 摘要（NCBI E-utilities） | 否（建议配 email） |
+| **Europe PMC** | PubMed + PMC + 预印本 | 题录 + 摘要 + OA 全文链接 | 否 |
+| **OpenReview** | ICLR / NeurIPS / ICML 等 | 题录 + 摘要 + 公开评审 + PDF | 否 |
+| **HF Papers** | HuggingFace 每日/趋势 | 题录 + 摘要 | 否 |
+| **daily-arXiv-ai-enhanced** | 每日 arXiv | 题录 + DeepSeek 中文增强摘要 | 否 |
 
-> 按需求已从界面与默认流程中**移除 Semantic Scholar**（匿名 429 严重）。适配器代码保留但不再作为渠道暴露。
+用法：
 
-## 二、全文获取（只走合法来源）
+```bash
+sciforge lit search "video diffusion transformer" --source arxiv --limit 20
+sciforge lit search "video diffusion" --source pubmed --limit 20          # 医学/生命科学
+sciforge lit search "protein folding" --source europe_pmc --limit 20
+sciforge lit search "diffusion transformer" --source openreview --limit 20 # ICLR/NeurIPS
+sciforge lit search "..." --source openalex --source crossref --limit 10   # 多源合并
+```
+
+## 二、你的清单：哪些能接、怎么接
+
+### ✅ 有公开免费 API（已接入）
+
+- **OpenAlex、Crossref**：题录/摘要/引用关系（OpenAlex 有 cited_by 数据）
+- **PubMed、Europe PMC**：生命科学题录、摘要、OA 全文
+- **OpenReview**：AI 会议论文与公开评审
+- **Semantic Scholar**：有免费 API（限流，建议免费 Key）。**按你之前的要求当前默认未启用**；
+  适配器代码保留，需要时可恢复为可选渠道。
+- **arXiv、bioRxiv/medRxiv、SSRN、Research Square**：预印本源。已通过 arXiv + Europe PMC
+  覆盖；bioRxiv/medRxiv 被 Europe PMC 索引，SSRN/Research Square 部分可通过 Crossref/OpenAlex 检索。
+
+### 🟡 没有公开 API，但可以免费拿到「题录」
+
+- **IEEE Xplore、ACM DL、SpringerLink、ScienceDirect、Wiley、Taylor & Francis、JSTOR**
+  → 通过 **Crossref 出版社过滤（member ID）** 免费检索题录/DOI/摘要；**全文**需订阅或找 OA 版本。
+  已接入 `--source crossref --publisher <name>`：
+
+```bash
+sciforge lit search "diffusion model acceleration" --source crossref --publisher ieee --limit 20
+sciforge lit search "retrieval augmented generation" --source crossref --publisher acm --limit 20
+# 可选：ieee / acm / springer / elsevier / wiley / taylor_francis / jstor
+```
+
+- **CNKI / 万方 / 维普 / 国家哲学社会科学文献中心 / 百度学术**
+  → 无公开 API（订阅/反爬/需登录）。能通过 Crossref/OpenAlex 命中部分有 DOI 的中文期刊题录，
+  但系统化检索仍需机构账号；本工具**不做登录态爬取**。
+- **ProQuest / EThOS / CNKI 学位论文 / 各学协会会议集**
+  → 学位论文与会议全文多为订阅或访问受限；会议集（CVF/ACL Anthology/PMLR）公开但无统一 API，
+  可用 OpenReview + arXiv + Web 检索组合覆盖。
+- **Web of Science / Scopus**
+  → 商业数据库，无免费 API；引用关系可用 **OpenAlex** 部分替代（cited_by、related works）。
+- **Google Scholar**
+  → 无官方公开 API；抓取违反其条款且不稳定，因此不接入。
+- **RePEc**
+  → 无标准公共 API；经济学内容可用 OpenAlex/Crossref 覆盖一部分。
+
+### ⚪ 灰色文献与统计数据（免费 API 存在，当前未接入）
+
+政府网站、国家统计局、世界银行、WHO、OECD、联合国等大多有开放 API/SDMX 接口
+（World Bank `api.worldbank.org`、WHO GHO、OECD SDMX、UN SDG API）。这些**不是学术论文库**，
+当前 SciForge 聚焦论文工作流，暂未接入；需要的话可以加一个「数据查询」工具族。
+
+## 三、全文获取（只走合法来源）
 
 | 顺序 | 来源 | 说明 |
 |---|---|---|
-| 1 | arXiv 直链 | arXiv 论文直接下载 PDF |
-| 2 | Unpaywall | 按 DOI 查找**合法开放获取**版本；需配置邮箱 |
-| 3 | OpenAlex OA | 开放获取链接兜底 |
-| 4 | instsci（可选） | 复用你自己的学校/图书馆 WebVPN / CARSI / EZproxy 会话，访问你**有订阅权限**的论文；需自行安装 |
-| 5 | 手动 PDF | 任何你通过合法途径获得的 PDF（本地/网盘/作者主页）都可 `sciforge read <本地路径>` 精读，工具不会追问来源 |
+| 1 | arXiv / OpenReview PDF | 直接下载 |
+| 2 | Unpaywall | 按 DOI 找合法 OA 版本（需邮箱） |
+| 3 | OpenAlex OA / Europe PMC OA | 开放获取链接 |
+| 4 | instsci（可选） | 复用你的学校/图书馆订阅（WebVPN/CARSI/EZProxy） |
+| 5 | 手动合法 PDF | `sciforge read <本地路径>` 精读 |
 
-### 为什么没有 Sci-Hub？
+> 不集成 Sci-Hub 等未授权镜像（版权与法律风险）。付费墙论文：查预印本 → Unpaywall →
+> 机构订阅 → 手动下载合法 PDF。
 
-Sci-Hub 未经授权分发受版权保护的论文，在包括中国、美国、欧盟在内的多数法域被认定为侵权。
-把它做成自动化下载渠道会给使用者与项目带来实际法律风险，因此**不会集成**。
-需要付费墙后的论文时，可用上面的合法路径：OA 版本 / 预印本 / 机构订阅（instsci）/
-作者主页 / 出版社 API / 图书馆文献传递 / 直接联系作者要 PDF。
+## 四、配置（只需要邮箱，可选）
 
-## 三、可选配置（只有一项）
-
-| 配置 | 作用 | 不配置的后果 |
-|---|---|---|
-| 邮箱（`email` / `unpaywall_email`） | Unpaywall 开放获取查询、礼貌池 | 非 arXiv 论文可能找不到合法 OA 全文 |
-
-其余检索（arXiv / daily / OpenAlex / Crossref / HF Papers）、PDF（arXiv）、BibTeX、精读、本地库**全部免配置**。
-
-## 四、在哪里配置
-
-### 方式 1：网页 GUI（推荐）
-
-`sciforge gui` → **文献** 页 → 顶部「检索设置」面板：
-
-- 联系邮箱（Unpaywall / OA 礼貌池）
-- Unpaywall 邮箱（可留空则用上面的邮箱）
-- 每日 arXiv 语言（中文 / English）
-- 面板同时展示检索渠道与全文获取渠道的可用状态
-
-保存即写入 `~/.sciforge/config.toml`（0600），密钥/邮箱不会回传浏览器。
-
-### 方式 2：配置文件 `~/.sciforge/config.toml`
+GUI：**文献** 页 → 「检索设置」→ 联系邮箱 / Unpaywall 邮箱 / 每日 arXiv 语言。
 
 ```toml
 [literature]
 email = "you@example.com"
-unpaywall_email = "you@example.com"   # 可留空
-daily_arxiv_language = "Chinese"      # Chinese | English
-arxiv_categories = ["cs.CV", "cs.CL", "cs.LG", "cs.AI"]
+# unpaywall_email = "you@example.com"
+daily_arxiv_language = "Chinese"
 ```
 
-### 方式 3：CLI
+`email` 会作为 Crossref/OpenAlex 礼貌池与 Unpaywall 查询参数；不配置也能用，只是配额与 OA 命中略低。
+
+## 五、历史会话
+
+GUI 对话页点 **🕘 历史** 可查看 `.sciforge/sessions/` 下的所有历史对话（含 CLI/网页会话），
+点击即可恢复查看；继续发消息会接上该会话的上下文。
 
 ```bash
-sciforge config path          # 查看配置文件
+ls .sciforge/sessions/            # 每个会话一个目录
+sciforge chat                     # CLI 交互
 ```
-
-## 五、使用方式
-
-```bash
-# 检索（可多来源）
-sciforge lit search "diffusion transformer video generation" --source arxiv --limit 20
-sciforge lit search "..." --source openalex --source crossref --limit 10
-
-# 每日 arXiv 中文速览
-sciforge lit daily --category cs.CV --limit 20
-
-# 全文 + 精读 + 笔记 + BibTeX
-sciforge lit fetch 2610.22369            # arXiv / Unpaywall / OpenAlex OA
-sciforge lit fetch 10.1109/cvpr52733.2024.00616 --instsci   # 可选：机构访问
-sciforge read 2610.22369 --note
-sciforge read /path/to/legal.pdf --note  # 手动合法获得的 PDF
-sciforge lit cite 2610.22369
-
-# 本地库
-sciforge lit list
-```
-
-GUI：**文献** 页直接搜索 / 每日 arXiv / 我的文献库，卡片上可一键「精读 / 入库 / arXiv / PDF」。
-
-## 六、常见问题
-
-| 现象 | 处理 |
-|---|---|
-| 某篇付费论文拿不到 PDF | 先看 arXiv/作者主页/预印本；配置邮箱用 Unpaywall；有机构订阅则装 instsci；或手动下载合法 PDF 后 `sciforge read` |
-| HF Papers 超时 | 网络问题，改用 arXiv/OpenAlex |
-| daily 最新日期没有 AI 摘要 | 上游增强文件可能为空，会自动回退普通 JSONL 摘要 |
-| 扫描版 PDF 无文本 | `ocrmypdf input.pdf output.pdf` 后再精读 |
-| 想用 Semantic Scholar | 当前版本已移除该渠道；用 arXiv/OpenAlex 代替 |

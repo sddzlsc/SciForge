@@ -112,6 +112,8 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 
 ![对话内直接操作 GPU / 查看实验指标](examples/demo/screenshots/gui-gpu-chat.png)
 
+![历史会话 + 新增免费文献源](examples/demo/screenshots/gui-history-chat.png)
+
 ![GUI 文献：实时 arXiv 与 demo fixtures](examples/demo/screenshots/live-console-literature.png)
 
 ![GUI 实验：Pipeline 运行与历史](examples/demo/screenshots/live-console-experiments.png)
@@ -128,7 +130,7 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 
 | 模块 | 能力 | 入口 |
 |---|---|---|
-| 📚 文献 | arXiv / OpenAlex / HF Papers / Crossref / 每日 arXiv 中文摘要；BibTeX；合法全文获取（arXiv/Unpaywall/OA/机构访问，不集成 Sci-Hub；见 [docs/LITERATURE.md](docs/LITERATURE.md)） | `sciforge lit ...`、`lit_search`、`lit_daily` |
+| 📚 文献 | arXiv / PubMed / Europe PMC / OpenReview / OpenAlex / Crossref（含 IEEE/ACM/Springer 等出版社题录过滤）/ HF Papers / 每日 arXiv；BibTeX + 合法全文获取（不集成 Sci-Hub；免费源清单见 [docs/LITERATURE.md](docs/LITERATURE.md)） | `sciforge lit ...`、`lit_search`、`lit_daily` |
 | 📖 精读 | PDF → 章节结构 → 结构化笔记 / 对比矩阵 / 论文问答 | `sciforge read ...`、`paper_read`、`paper_note` |
 | 💡 创新点 | 从文献空白生成 Idea Card（空白/洞察/方法/MVP/风险/评分）与 Proposal | `sciforge idea generate`、`idea_generate` |
 | 🧪 实验 | 实验设计 → 代码脚手架（CV/NLP/LLM-SFT）→ 远程启动 → 状态/日志 → 指标回收 | `sciforge exp ...`、`exp_scaffold`、`exp_launch` |

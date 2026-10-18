@@ -990,3 +990,67 @@ def test_server_metrics_endpoint(client: TestClient, monkeypatch: pytest.MonkeyP
     assert data["latest"]["loss"] == 0.42
     assert data["available"] is True
     assert client.get("/api/servers/nope/metrics").status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 历史会话
+# ---------------------------------------------------------------------------
+
+
+def _write_transcript(project: Path, session_id: str) -> Path:
+    path = project / ".sciforge" / "sessions" / session_id / "transcript.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "session_id": session_id,
+                "task": "历史问题",
+                "created_at": time.time() - 60,
+                "steps": 2,
+                "tool_calls": 1,
+                "stopped_reason": "stop",
+                "usage": {"total_tokens": 100},
+                "messages": [
+                    {"role": "user", "content": "历史问题：总结这篇论文"},
+                    {"role": "assistant", "content": "历史回答：论文提出了新方法。"},
+                ],
+                "artifacts": [],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_sessions_list_and_detail(client: TestClient, project: Path) -> None:
+    _write_transcript(project, "cli-demo-001")
+    listing = client.get("/api/sessions").json()
+    assert listing["ok"] is True
+    assert listing["count"] >= 1
+    item = next(item for item in listing["sessions"] if item["session_id"] == "cli-demo-001")
+    assert item["source"] == "cli"
+    assert "历史问题" in item["preview"]
+    assert item["tool_calls"] == 1
+
+    detail = client.get("/api/sessions/cli-demo-001").json()
+    assert detail["ok"] is True
+    assert detail["messages_detail"][0]["content"].startswith("历史问题")
+    assert client.get("/api/sessions/cli-demo-999").status_code == 404
+
+
+def test_chat_continues_from_saved_transcript(client: TestClient, project: Path) -> None:
+    _write_transcript(project, "cli-demo-002")
+    resp = client.post(
+        "/api/chat",
+        json={"message": "继续聊", "mock": True, "session_id": "cli-demo-002"},
+    )
+    assert resp.status_code == 200
+    events = parse_sse(resp.text.splitlines())
+    done = next(event for event in events if event["event"] == "done")
+    assert done["data"]["ok"] is True
+    transcript = (
+        project / ".sciforge" / "sessions" / "cli-demo-002" / "transcript.json"
+    ).read_text(encoding="utf-8")
+    assert "历史问题" in transcript  # 旧上下文被带入新运行
+    assert "继续聊" in transcript

@@ -59,6 +59,20 @@ S2_FIELDS = (
 OPENALEX_API = "https://api.openalex.org/works"
 CROSSREF_API = "https://api.crossref.org/works"
 UNPAYWALL_API = "https://api.unpaywall.org/v2/{doi}"
+PUBMED_ESEARCH_API = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+PUBMED_EFETCH_API = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+EUROPEPMC_API = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+OPENREVIEW_API = "https://api2.openreview.net/notes/search"
+#: Crossref member ID（合法获取 IEEE/ACM/Springer 等出版社的题录元数据，无需订阅）
+CROSSREF_PUBLISHERS = {
+    "ieee": 263,
+    "acm": 320,
+    "springer": 297,
+    "elsevier": 78,
+    "wiley": 311,
+    "taylor_francis": 301,
+    "jstor": 112,
+}
 HF_PAPERS_SEARCH = "https://huggingface.co/api/papers/search"
 HF_DAILY_PAPERS = "https://huggingface.co/api/daily_papers"
 DAILY_REPO_RAW = "https://raw.githubusercontent.com/dw-dengwei/daily-arXiv-ai-enhanced/data"
@@ -81,6 +95,12 @@ SOURCE_ALIASES = {
     "daily": "daily",
     "daily_arxiv": "daily",
     "crossref": "crossref",
+    "pubmed": "pubmed",
+    "pmid": "pubmed",
+    "europe_pmc": "europe_pmc",
+    "europepmc": "europe_pmc",
+    "epmc": "europe_pmc",
+    "openreview": "openreview",
 }
 
 console = Console()
@@ -836,17 +856,33 @@ def crossref_search(
     *,
     limit: int = 20,
     since: str | None = None,
+    publisher: str | None = None,
     client: httpx.Client | None = None,
     settings: Any = None,
 ) -> list[PaperRecord]:
-    """Crossref 检索（DOI 元数据权威，摘要/PDF 链接不一定齐全）。"""
+    """Crossref 检索（DOI 元数据权威，摘要/PDF 链接不一定齐全）。
+
+    ``publisher`` 可用 IEEE / ACM / Springer / Elsevier / Wiley / Taylor & Francis / JSTOR
+    的 member 过滤，免费拿到这些出版社的题录（全文仍需订阅或 OA）。
+    """
     params: dict[str, Any] = {
         "query.bibliographic": str(query or "").strip(),
         "rows": max(1, min(int(limit or 20), 100)),
     }
+    filters: list[str] = []
     since_date = _resolved_date(since)
     if since_date:
-        params["filter"] = f"from-pub-date:{since_date}"
+        filters.append(f"from-pub-date:{since_date}")
+    if publisher:
+        key = re.sub(r"[\s\-]+", "_", str(publisher).strip().lower())
+        member = CROSSREF_PUBLISHERS.get(key)
+        if member is None:
+            raise LiteratureError(
+                f"未知出版社过滤：{publisher}；可用：{', '.join(sorted(CROSSREF_PUBLISHERS))}"
+            )
+        filters.append(f"member:{member}")
+    if filters:
+        params["filter"] = ",".join(filters)
     email = _contact_email(settings)
     if email:
         params["mailto"] = email
@@ -860,6 +896,288 @@ def crossref_search(
     items = (payload.get("message") or {}).get("items") or []
     records = [_crossref_record(item) for item in items if isinstance(item, dict)]
     return [record for record in records if record is not None]
+
+
+# ---------------------------------------------------------------------------
+# PubMed / Europe PMC（生命科学、医学；免费 E-utilities / REST API）
+# ---------------------------------------------------------------------------
+
+
+def parse_pubmed_xml(xml_text: str, *, limit: int | None = None) -> list[PaperRecord]:
+    """解析 PubMed efetch 返回的 XML（免费、无需 API key）。"""
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as exc:
+        raise LiteratureError(f"PubMed XML 解析失败：{exc}") from exc
+    records: list[PaperRecord] = []
+    for article in root.findall(".//PubmedArticle"):
+        citation = article.find("MedlineCitation")
+        if citation is None:
+            continue
+        pmid = _clean(citation.findtext("PMID"))
+        art = citation.find("Article")
+        if art is None:
+            continue
+        title_node = art.find("ArticleTitle")
+        title = _clean("".join(title_node.itertext()).strip()) if title_node is not None else ""
+        abstract = " ".join(
+            "".join(node.itertext()).strip() for node in art.findall("Abstract/AbstractText")
+        ).strip()
+        authors: list[str] = []
+        for author in art.findall("AuthorList/Author"):
+            collective = _clean(author.findtext("CollectiveName"))
+            if collective:
+                authors.append(collective)
+                continue
+            last = _clean(author.findtext("LastName"))
+            fore = _clean(author.findtext("ForeName"))
+            if last or fore:
+                authors.append((fore + " " + last).strip())
+        journal = _clean(art.findtext("Journal/Title")) or _clean(art.findtext("Journal/ISOAbbreviation"))
+        year = _clean(art.findtext("Journal/JournalIssue/PubDate/Year"))
+        if not year:
+            medline_date = _clean(art.findtext("Journal/JournalIssue/PubDate/MedlineDate"))
+            match = re.search(r"(\d{4})", medline_date or "")
+            year = match.group(1) if match else ""
+        doi = ""
+        pmc = ""
+        for article_id in article.findall("PubmedData/ArticleIdList/ArticleId"):
+            id_type = (article_id.get("IdType") or "").lower()
+            if id_type == "doi":
+                doi = _clean(article_id.text)
+            elif id_type == "pmc":
+                pmc = _clean(article_id.text)
+        records.append(
+            PaperRecord(
+                id=doi or (f"PMID:{pmid}" if pmid else safe_id(title)),
+                title=title or f"PMID {pmid}",
+                authors=authors,
+                abstract=abstract,
+                url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else "",
+                pdf_url=f"https://europepmc.org/articles/{pmc}?pdf=render" if pmc else "",
+                published=year,
+                venue=journal,
+                categories=["PubMed"],
+                source="pubmed",
+                tags=["pubmed", "biomed"] + (["pmc"] if pmc else []),
+            )
+        )
+        if limit and len(records) >= limit:
+            break
+    return records
+
+
+def pubmed_search(
+    query: str,
+    *,
+    limit: int = 20,
+    since: str | None = None,
+    client: httpx.Client | None = None,
+    settings: Any = None,
+) -> list[PaperRecord]:
+    """PubMed 检索（NCBI E-utilities；免费，建议配置 email 提升配额）。"""
+    term = str(query or "").strip()
+    if not term:
+        raise LiteratureError("PubMed 检索需要关键词。")
+    since_date = _resolved_date(since)
+    if since_date:
+        term = f"({term}) AND (\"{since_date}\"[Date - Publication] : \"3000\"[Date - Publication])"
+    email = _contact_email(settings)
+    params: dict[str, Any] = {
+        "db": "pubmed",
+        "term": term,
+        "retmode": "json",
+        "retmax": max(1, min(int(limit or 20), 100)),
+        "sort": "relevance",
+    }
+    if email:
+        params["email"] = email
+    with open_client(client, settings=settings) as http:
+        resp = _get(http, PUBMED_ESEARCH_API, source="PubMed", params=params)
+        _require_status(resp, "PubMed", hints="PubMed 有频率限制（3 req/s），可稍后重试。")
+        try:
+            payload = resp.json()
+        except ValueError as exc:
+            raise LiteratureError(f"PubMed 返回的不是合法 JSON：{exc}") from exc
+        ids = (payload.get("esearchresult") or {}).get("idlist") or []
+        if not ids:
+            return []
+        fetch_params = {"db": "pubmed", "id": ",".join(ids), "retmode": "xml"}
+        if email:
+            fetch_params["email"] = email
+        fetched = _get(http, PUBMED_EFETCH_API, source="PubMed", params=fetch_params)
+    _require_status(fetched, "PubMed efetch")
+    return parse_pubmed_xml(fetched.text, limit=limit)
+
+
+def _europe_pmc_record(item: dict[str, Any]) -> PaperRecord | None:
+    title = _clean(item.get("title"))
+    if not title:
+        return None
+    doi = _clean(item.get("doi"))
+    source_id = _clean(item.get("id"))
+    pmcid = _clean(item.get("pmcid"))
+    authors = [
+        part.strip()
+        for part in re.split(r"[,;]", _clean(item.get("authorString")))
+        if part.strip()
+    ]
+    pdf_url = ""
+    for link in (item.get("fullTextUrlList") or {}).get("fullTextUrl") or []:
+        if not isinstance(link, dict):
+            continue
+        if str(link.get("availability") or "").lower() == "open access":
+            pdf_url = _clean(link.get("url"))
+            if pdf_url:
+                break
+    year = _clean(item.get("pubYear"))
+    published = _clean(item.get("firstPublicationDate")) or year
+    record_id = doi or (f"EPMC:{source_id}" if source_id else safe_id(title))
+    tags = ["europepmc"]
+    if str(item.get("source") or "").lower() in ("ppr", "preprint"):
+        tags.append("preprint")
+    return PaperRecord(
+        id=record_id,
+        title=title,
+        authors=authors,
+        abstract=_clean(item.get("abstractText")),
+        url=f"https://doi.org/{doi}" if doi else (
+            f"https://europepmc.org/article/{item.get('source') or 'MED'}/{source_id}"
+        ),
+        pdf_url=pdf_url or (
+            f"https://europepmc.org/articles/{pmcid}?pdf=render" if pmcid else ""
+        ),
+        published=published[:10],
+        venue=_clean(item.get("journalTitle") or item.get("bookOrReportDetails", {}).get("publisher")),
+        categories=[_clean(item.get("pubType"))] if _clean(item.get("pubType")) else ["Europe PMC"],
+        source="europe_pmc",
+        tags=tags,
+    )
+
+
+def europe_pmc_search(
+    query: str,
+    *,
+    limit: int = 20,
+    since: str | None = None,
+    client: httpx.Client | None = None,
+    settings: Any = None,
+) -> list[PaperRecord]:
+    """Europe PMC 检索（免费 REST；覆盖 PubMed、PMC、预印本等）。"""
+    term = str(query or "").strip()
+    if not term:
+        raise LiteratureError("Europe PMC 检索需要关键词。")
+    since_date = _resolved_date(since)
+    if since_date:
+        term = f"({term}) AND (FIRST_PDATE:[{since_date} TO 3000-12-31])"
+    params = {
+        "query": term,
+        "format": "json",
+        "pageSize": max(1, min(int(limit or 20), 100)),
+        "resultType": "core",
+        "sort": "CITED desc",
+    }
+    email = _contact_email(settings)
+    if email:
+        params["email"] = email
+    with open_client(client, settings=settings) as http:
+        resp = _get(http, EUROPEPMC_API, source="Europe PMC", params=params)
+    _require_status(resp, "Europe PMC")
+    try:
+        payload = resp.json()
+    except ValueError as exc:
+        raise LiteratureError(f"Europe PMC 返回的不是合法 JSON：{exc}") from exc
+    items = (payload.get("resultList") or {}).get("result") or []
+    records = [_europe_pmc_record(item) for item in items if isinstance(item, dict)]
+    return [record for record in records if record is not None]
+
+
+# ---------------------------------------------------------------------------
+# OpenReview（ICLR / NeurIPS 等会议公开评审与论文）
+# ---------------------------------------------------------------------------
+
+
+def _openreview_value(content: dict[str, Any], key: str) -> Any:
+    value = content.get(key)
+    if isinstance(value, dict):
+        return value.get("value")
+    return value
+
+
+def _openreview_record(note: dict[str, Any]) -> PaperRecord | None:
+    content = note.get("content") or {}
+    if not isinstance(content, dict):
+        return None
+    title = _clean(_openreview_value(content, "title"))
+    if not title:
+        return None
+    forum = _clean(note.get("forum") or note.get("id"))
+    authors = _openreview_value(content, "authors") or []
+    if isinstance(authors, str):
+        authors = [part.strip() for part in authors.split(",") if part.strip()]
+    venue = _clean(_openreview_value(content, "venue") or _openreview_value(content, "venueid"))
+    timestamp = note.get("pdate") or note.get("cdate") or note.get("tcdate")
+    published = ""
+    if isinstance(timestamp, (int, float)) and timestamp > 0:
+        published = datetime.fromtimestamp(timestamp / 1000).strftime("%Y-%m-%d")
+    keywords = _openreview_value(content, "keywords") or []
+    if isinstance(keywords, str):
+        keywords = [part.strip() for part in keywords.split(",") if part.strip()]
+    return PaperRecord(
+        id=f"openreview:{forum}" if forum else safe_id(title),
+        title=title,
+        authors=[str(author) for author in authors if str(author).strip()],
+        abstract=_clean(_openreview_value(content, "abstract")),
+        url=f"https://openreview.net/forum?id={forum}" if forum else "",
+        pdf_url=f"https://openreview.net/pdf?id={forum}" if forum else "",
+        published=published,
+        venue=venue,
+        categories=[str(item) for item in keywords][:5],
+        source="openreview",
+        tags=["openreview", "conference"],
+    )
+
+
+def openreview_search(
+    query: str,
+    *,
+    limit: int = 20,
+    client: httpx.Client | None = None,
+    settings: Any = None,
+) -> list[PaperRecord]:
+    """OpenReview 检索（免费公开 API；适合 ICLR/NeurIPS 等最新会议论文）。"""
+    term = str(query or "").strip()
+    if not term:
+        raise LiteratureError("OpenReview 检索需要关键词。")
+    params = {
+        "term": term,
+        "limit": max(1, min(int(limit or 20), 100)),
+        "type": "terms",
+        "content": "all",
+        "group": "all",
+        "source": "forum",
+    }
+    with open_client(client, settings=settings) as http:
+        resp = _get(http, OPENREVIEW_API, source="OpenReview", params=params)
+    _require_status(resp, "OpenReview", hints="OpenReview API 偶发 5xx，可稍后重试。")
+    try:
+        payload = resp.json()
+    except ValueError as exc:
+        raise LiteratureError(f"OpenReview 返回的不是合法 JSON：{exc}") from exc
+    notes = payload.get("notes") or []
+    records: list[PaperRecord] = []
+    seen: set[str] = set()
+    for note in notes:
+        if not isinstance(note, dict):
+            continue
+        record = _openreview_record(note)
+        if record is None or record.id in seen:
+            continue
+        seen.add(record.id)
+        records.append(record)
+        if len(records) >= limit:
+            break
+    return records
 
 
 # ---------------------------------------------------------------------------
@@ -1442,8 +1760,9 @@ def _record_brief(record: PaperRecord, index: int) -> str:
 class LitSearchTool(BaseTool):
     name = "lit_search"
     description = (
-        "检索学术文献并写入本地文献库。支持多来源：arxiv（默认，最稳）、"
-        "openalex、hf_papers、daily（daily-arXiv AI 增强中文摘要）、crossref。"
+        "检索学术文献并写入本地文献库。支持多来源：arxiv（默认，最稳）、pubmed（医学/生命科学）、"
+        "europe_pmc（含 PMC/预印本）、openreview（ICLR/NeurIPS 等会议）、openalex、hf_papers、"
+        "daily（daily-arXiv AI 增强中文摘要）、crossref（可用 publisher 过滤 IEEE/ACM/Springer 等题录）。"
         "何时用：做文献调研/相关工作/找最新进展、确定创新点前需要收集论文时。"
         "多来源失败会自动降级；返回标题、作者、摘要、链接，可用 paper_read 精读。"
     )
@@ -1463,6 +1782,9 @@ class LitSearchTool(BaseTool):
                     "type": "string",
                     "enum": [
                         "arxiv",
+                        "pubmed",
+                        "europe_pmc",
+                        "openreview",
                         "openalex",
                         "hf_papers",
                         "daily",
@@ -1479,6 +1801,11 @@ class LitSearchTool(BaseTool):
             "category": {
                 "type": "string",
                 "description": "arXiv/OpenAlex 类别过滤，如 cs.CV、cs.CL、cs.LG（可选）。",
+            },
+            "publisher": {
+                "type": "string",
+                "enum": ["ieee", "acm", "springer", "elsevier", "wiley", "taylor_francis", "jstor"],
+                "description": "仅 source=crossref 时生效：按出版社过滤题录（免费，不需要订阅）。",
             },
             "save": {
                 "type": "boolean",
@@ -1511,6 +1838,29 @@ class LitSearchTool(BaseTool):
                         limit=limit,
                         since=since,
                         category=category,
+                        client=client,
+                        settings=ctx.settings,
+                    )
+                elif source == "pubmed":
+                    found = pubmed_search(
+                        query,
+                        limit=limit,
+                        since=since,
+                        client=client,
+                        settings=ctx.settings,
+                    )
+                elif source == "europe_pmc":
+                    found = europe_pmc_search(
+                        query,
+                        limit=limit,
+                        since=since,
+                        client=client,
+                        settings=ctx.settings,
+                    )
+                elif source == "openreview":
+                    found = openreview_search(
+                        query,
+                        limit=limit,
                         client=client,
                         settings=ctx.settings,
                     )
@@ -1550,6 +1900,7 @@ class LitSearchTool(BaseTool):
                 elif source == "crossref":
                     found = crossref_search(
                         query,
+                        publisher=kwargs.get("publisher"),
                         limit=limit,
                         since=since,
                         client=client,
@@ -1982,7 +2333,7 @@ def add_cli(app: typer.Typer) -> None:
     """挂载 ``sciforge lit search|daily|fetch|cite|list`` 子命令。"""
     lit_app = typer.Typer(
         name="lit",
-        help="文献检索：arXiv / OpenAlex / HF Papers / daily arXiv / Crossref",
+        help="文献检索：arXiv / PubMed / Europe PMC / OpenReview / OpenAlex / HF Papers / daily arXiv / Crossref",
         no_args_is_help=True,
     )
     app.add_typer(lit_app, name="lit")

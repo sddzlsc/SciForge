@@ -54,6 +54,8 @@ GUI 实跑验收（2026-10-18）：`sciforge gui` 启动后 headless Chrome 逐�
 - GUI 配置实测：模型 Provider 新增/测试（Web 端验证脱敏与持久化）、GPU 服务器保存/SSH 失败反馈、文献设置（OA 邮箱/每日语言）保存；`config.toml` 0600
 - 文件上传实测：`POST /api/upload` 保存到项目 `uploads/` 并回传文本预览；带附件 mock 对话的任务上下文中出现附件内容；GPU 上传端点以注入式 SSH 执行器验证
 - GPU 指标实测：`remote_metrics` 自动发现 + 解析 JSON/JSONL/历史序列；`GET /api/servers/{name}/metrics` 注入式验证；`/api/download` 下载与目录穿越防护验证
+- 新增免费源实测：PubMed → 题录+摘要 ✅；Europe PMC ✅；OpenReview（ICLR/NeurIPS）✅；Crossref 出版社过滤（IEEE/ACM/…）✅
+- 历史会话：`/api/sessions` 列表 + 详情 + 从 transcript 恢复上下文继续对话，均有测试覆盖
 - daily-arXiv-ai-enhanced：`sciforge lit daily --category cs.CV --limit 3` → 中文增强摘要 + 文献库
 - 示例论文精读：`sciforge read examples/demo/fixtures/paper.pdf` → pymupdf 提取 4 页、章节结构完整
 - 实验骨架：`sciforge exp scaffold --template cv-classification` → `bash scripts/smoke.sh` → `SMOKE OK`

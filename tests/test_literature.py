@@ -1173,3 +1173,134 @@ def test_daily_real_network() -> None:
     records = literature.daily_arxiv_search(limit=2)
     assert records
     assert records[0].title
+
+
+# ---------------------------------------------------------------------------
+# PubMed / Europe PMC / OpenReview / Crossref 出版社过滤
+# ---------------------------------------------------------------------------
+
+PUBMED_XML = """<?xml version="1.0" ?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID>12345678</PMID>
+      <Article>
+        <ArticleTitle>Deep <i>learning</i> for video generation</ArticleTitle>
+        <Abstract><AbstractText>We study video generation.</AbstractText></Abstract>
+        <AuthorList>
+          <Author><LastName>Zhang</LastName><ForeName>San</ForeName></Author>
+        </AuthorList>
+        <Journal><Title>Nature</Title><JournalIssue><PubDate><Year>2026</Year></PubDate></JournalIssue></Journal>
+      </Article>
+    </MedlineCitation>
+    <PubmedData><ArticleIdList>
+      <ArticleId IdType="doi">10.1000/demo</ArticleId>
+      <ArticleId IdType="pmc">PMC123</ArticleId>
+    </ArticleIdList></PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>"""
+
+
+def test_parse_pubmed_xml() -> None:
+    records = literature.parse_pubmed_xml(PUBMED_XML)
+    assert len(records) == 1
+    record = records[0]
+    assert record.title == "Deep learning for video generation"
+    assert record.id == "10.1000/demo"
+    assert record.authors == ["San Zhang"]
+    assert record.venue == "Nature"
+    assert record.published == "2026"
+    assert record.source == "pubmed"
+
+
+def test_pubmed_search_uses_esearch_efetch() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        if "esearch" in str(request.url):
+            return json_response({"esearchresult": {"idlist": ["12345678"]}})
+        return httpx.Response(200, text=PUBMED_XML)
+
+    with mock_http(handler) as client:
+        records = literature.pubmed_search("video generation", limit=5, client=client)
+    assert records and records[0].id == "10.1000/demo"
+    assert any("esearch" in url for url in calls) and any("efetch" in url for url in calls)
+
+
+def test_europe_pmc_search() -> None:
+    payload = {
+        "resultList": {
+            "result": [
+                {
+                    "id": "PPR123",
+                    "source": "PPR",
+                    "title": "Preprint on video diffusion",
+                    "authorString": "Alice A, Bob B",
+                    "abstractText": "Abstract here.",
+                    "pubYear": "2026",
+                    "doi": "10.1101/2026.01.01.123456",
+                    "pmcid": "",
+                    "fullTextUrlList": {"fullTextUrl": []},
+                }
+            ]
+        }
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "europepmc" in str(request.url)
+        return json_response(payload)
+
+    with mock_http(handler) as client:
+        records = literature.europe_pmc_search("video diffusion", limit=5, client=client)
+    assert len(records) == 1
+    assert records[0].id == "10.1101/2026.01.01.123456"
+    assert "preprint" in records[0].tags
+    assert records[0].authors == ["Alice A", "Bob B"]
+
+
+def test_openreview_search() -> None:
+    payload = {
+        "notes": [
+            {
+                "id": "abc",
+                "forum": "forum-1",
+                "pdate": 1760000000000,
+                "content": {
+                    "title": {"value": "Dynamic Diffusion Transformer"},
+                    "abstract": {"value": "We propose ..."},
+                    "authors": {"value": ["Alice", "Bob"]},
+                    "venue": {"value": "ICLR 2026 Poster"},
+                    "keywords": {"value": ["diffusion", "transformer"]},
+                },
+            }
+        ]
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "openreview" in str(request.url)
+        assert "term=" in str(request.url)
+        return json_response(payload)
+
+    with mock_http(handler) as client:
+        records = literature.openreview_search("diffusion transformer", limit=5, client=client)
+    assert len(records) == 1
+    assert records[0].title == "Dynamic Diffusion Transformer"
+    assert records[0].venue == "ICLR 2026 Poster"
+    assert records[0].pdf_url.endswith("/pdf?id=forum-1")
+
+
+def test_crossref_publisher_filter() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["params"] = dict(request.url.params)
+        return json_response({"message": {"items": []}})
+
+    with mock_http(handler) as client:
+        literature.crossref_search("diffusion", limit=5, publisher="IEEE", client=client)
+    assert "member:263" in captured["params"].get("filter", "")
+
+    with mock_http(handler) as client:
+        with pytest.raises(literature.LiteratureError, match="未知出版社"):
+            literature.crossref_search("x", publisher="unknown-publisher", client=client)

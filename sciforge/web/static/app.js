@@ -819,6 +819,79 @@
     input.style.height = Math.min(input.scrollHeight, 190) + 'px';
   }
 
+  /* ---------------------------------- 历史会话 ---------------------------------- */
+  function addStaticAssistantMessage(text) {
+    hideWelcome();
+    const wrap = el('div', 'msg assistant');
+    wrap.innerHTML =
+      '<div class="msg-avatar">SF</div>' +
+      '<div class="msg-body"><div class="msg-meta"><span class="msg-role">SciForge</span></div>' +
+      '<div class="msg-content md"></div></div>';
+    wrap.querySelector('.msg-content').innerHTML = renderMarkdown(text || '');
+    $('#chat-messages').appendChild(wrap);
+    scrollChat(true);
+  }
+
+  async function loadSessionIntoChat(sessionId) {
+    try {
+      const data = await api('/api/sessions/' + encodeURIComponent(sessionId));
+      const box = $('#chat-messages');
+      box.innerHTML = '';
+      const banner = el('div', 'notice info',
+        '历史会话 ' + sessionId + ' · ' + (data.created_at || '') + ' · 继续发送将接上上下文');
+      box.appendChild(banner);
+      state.chat.sessionId = sessionId;
+      state.chat.assistant = null;
+      state.chat.buffer = '';
+      $('#session-label').textContent = '继续会话：' + sessionId;
+      for (const message of data.messages_detail || []) {
+        const role = String(message.role || '');
+        const content = String(message.content || '').trim();
+        if (!content) continue;
+        if (role === 'user') addUserMessage(content);
+        else if (role === 'assistant' && !(message.tool_calls || []).length) addStaticAssistantMessage(content);
+      }
+      toast('已载入历史会话，可继续对话', 'ok', 4000);
+    } catch (err) {
+      toast('载入历史会话失败：' + err.message, 'err', 8000);
+    }
+  }
+
+  async function showSessionHistory() {
+    try {
+      const data = await api('/api/sessions?limit=80');
+      const list = el('div', 'files-list');
+      const sessions = data.sessions || [];
+      if (!sessions.length) {
+        list.innerHTML = emptyState('🗂️', '还没有历史会话。完成一次对话后会自动保存在 .sciforge/sessions/。');
+      } else {
+        sessions.forEach((item) => {
+          const row = el('div', 'file-row');
+          row.innerHTML =
+            '<div class="file-icon">' + (item.source === 'web' ? '💬' : '🧪') + '</div>' +
+            '<div class="file-main">' +
+            '<span class="file-name">' + escapeHtml(item.session_id) + '</span>' +
+            '<span class="file-sub">' + escapeHtml(item.created_at || '') + ' · ' +
+            (item.messages || 0) + ' 条消息 · ' + (item.tool_calls || 0) + ' 次工具调用</span>' +
+            '<span class="file-sub">' + escapeHtml(item.preview || item.task || '') + '</span>' +
+            '</div>';
+          row.addEventListener('click', () => {
+            closeModal();
+            loadSessionIntoChat(item.session_id);
+          });
+          list.appendChild(row);
+        });
+      }
+      const tip = el('p', 'muted', '点击任意会话可在对话区恢复查看；继续发送消息会接上该会话上下文。');
+      const wrap = el('div', '');
+      wrap.appendChild(tip);
+      wrap.appendChild(list);
+      openModal('历史会话', wrap);
+    } catch (err) {
+      toast('读取历史会话失败：' + err.message, 'err', 8000);
+    }
+  }
+
   function bindChat() {
     const form = $('#chat-form');
     const input = $('#chat-input');
@@ -862,6 +935,7 @@
       }
     });
     $('#new-session').addEventListener('click', resetChat);
+    $('#history-btn').addEventListener('click', showSessionHistory);
     document.querySelectorAll('#quick-chips .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         const prompt = chip.dataset.prompt || chip.textContent;
@@ -1072,6 +1146,11 @@
       $('#lit-fulltext').innerHTML = fulltextSources.map((source) =>
         '<span class="tag-chip" title="' + escapeHtml(source.note || '') + '">' +
         escapeHtml(source.name) + (source.available ? ' · 可用' : ' · 未配置') + '</span>'
+      ).join('');
+
+      const publishers = data.publisher_filters || [];
+      $('#lit-publishers').innerHTML = publishers.map((item) =>
+        '<span class="tag-chip" title="Crossref member 过滤">' + escapeHtml(item.label || item.id) + '</span>'
       ).join('');
 
       if (data.policy) {

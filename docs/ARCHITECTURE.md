@@ -165,7 +165,12 @@ class LLMRouter:
 - `MockProvider`（`sciforge/llm/mock.py`）用于离线 demo/测试：按 `ScriptedResponse` 或启发式回复，
   也会在需要时发起脚本化 tool call。
 
-## 6. 配置契约（`sciforge/config.py`）
+## 6. 配置
+
+> Agent 步数：`settings.agent.max_steps`（默认 30；`0` = 无上限）。
+> CLI `--max-steps`、HTTP `max_steps`、GUI「步数」输入框均可覆盖；pipeline 阶段另有
+> 更小的 per-stage 预算（10–18）。
+契约（`sciforge/config.py`）
 
 - 全局：`~/.sciforge/config.toml`（`SCIFORGE_HOME` 可覆盖 `~/.sciforge`）。
 - 项目：`<project>/.sciforge/project.toml`，覆盖全局。

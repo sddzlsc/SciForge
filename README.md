@@ -94,6 +94,23 @@ sciforge pipeline run --recipe survey --topic "spatio-temporal consistency in vi
 sciforge pipeline run --recipe full   --topic "..."   # end-to-end
 ```
 
+### Agent step budget
+
+One "step" is one LLM decision round plus the tools it calls. The default budget is **30 steps per task**:
+typical tasks finish in 3–8 steps, while 30 leaves headroom for multi-tool surveys without allowing
+runaway loops. Configure it from the GUI chat toolbar (**步数** field), the CLI (`--max-steps`), the
+HTTP API (`max_steps`), or `~/.sciforge/config.toml`:
+
+```toml
+[agent]
+max_steps = 30   # 0 = no limit (use with care)
+```
+
+`0` disables the cap; a run still stops when the model returns no tool calls, on an LLM error, or when
+you press Stop / Ctrl-C. For long autonomous runs prefer a large finite number (e.g. 100–200) rather
+than a true infinite loop, since unlimited runs can consume unbounded tokens and time. Pipeline
+stages have their own smaller budgets (10–18) defined in `sciforge/pipeline/recipes.py`.
+
 ## Free literature sources (no subscription)
 
 | Source | Coverage | What you get |

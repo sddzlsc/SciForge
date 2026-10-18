@@ -1054,3 +1054,16 @@ def test_chat_continues_from_saved_transcript(client: TestClient, project: Path)
     ).read_text(encoding="utf-8")
     assert "历史问题" in transcript  # 旧上下文被带入新运行
     assert "继续聊" in transcript
+
+
+def test_chat_accepts_unlimited_max_steps(client: TestClient) -> None:
+    resp = client.post(
+        "/api/chat",
+        json={"message": "x", "mock": True, "max_steps": 0},
+    )
+    assert resp.status_code == 200
+    events = parse_sse(resp.text.splitlines())
+    assert any(event["event"] == "done" for event in events)
+
+    bad = client.post("/api/chat", json={"message": "x", "mock": True, "max_steps": -1})
+    assert bad.status_code == 422

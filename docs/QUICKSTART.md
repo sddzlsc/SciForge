@@ -36,6 +36,11 @@ sciforge doctor
 
 ```bash
 sciforge chat "调研 diffusion transformer 在视频生成中的进展，总结 5 篇代表工作，并给出 3 个可做的方向"
+
+> **步数上限**：每次任务默认最多 30 个 Agent 步（1 步 = 1 次 LLM 调用 + 工具执行）。
+> 用 `--max-steps N` 调整，`0` 表示无上限（谨慎）；GUI 对话工具栏的「步数」框、
+> `[agent] max_steps` 配置和 `/api/chat` 的 `max_steps` 字段同样生效。
+> 不管上限多少，模型不再调用工具、LLM 报错、或手动停止时都会结束。
 ```
 
 Agent 会调用文献工具检索、写入 `notes/`、给出带评分的 Idea Card。

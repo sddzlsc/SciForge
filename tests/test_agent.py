@@ -78,3 +78,36 @@ def test_agent_unknown_tool_is_reported(sciforge_home: Path, project: Path) -> N
     result = agent.run("x")
     assert result.content
     assert any("未知工具" in m.content for m in result.messages if m.role == "tool")
+
+
+def test_agent_unlimited_steps_completes(sciforge_home: Path, project: Path) -> None:
+    """max_steps=0 表示无上限：模型自己停止时正常结束，而不是被步数截断。"""
+    settings = get_settings(project)
+    mock = MockProvider(scripts=[_tool_response(), "任务完成。"])
+    router = make_router(settings, mock=True)
+    router._providers["deepseek"] = mock
+    ctx = make_ctx(settings, project_dir=project, session_id="test-unlimited")
+    agent = AgentLoop(router, ctx, system_prompt="x", tools=["write_file"], max_steps=0)
+    result = agent.run("写一条笔记")
+    assert result.stopped_reason == "stop"
+    assert result.steps == 2
+    assert "任务完成" in result.content
+
+
+def test_make_agent_respects_configured_and_unlimited_steps(
+    sciforge_home: Path, project: Path
+) -> None:
+    from sciforge.agent.runtime import make_agent
+
+    settings = get_settings(project)
+    settings.agent.max_steps = 7
+    agent, _ctx, _router = make_agent(settings, project_dir=project, mock=True)
+    assert agent.max_steps == 7
+
+    settings.agent.max_steps = 0
+    agent, _ctx, _router = make_agent(settings, project_dir=project, mock=True)
+    assert agent.max_steps == 0
+
+    # 显式 override 优先于配置
+    agent, _ctx, _router = make_agent(settings, project_dir=project, mock=True, max_steps=12)
+    assert agent.max_steps == 12

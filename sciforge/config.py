@@ -205,6 +205,7 @@ class WebConfig(_Model):
 
 
 class AgentConfig(_Model):
+    # 单次任务最大 Agent 步数（每次 LLM 调用 + 工具执行 = 1 步）；0 或负数表示无上限（谨慎）
     max_steps: int = 30
     context_token_budget: int = 96000
     compact_keep_messages: int = 12
@@ -456,6 +457,10 @@ palette = "okabe-ito"
 [writing]
 venue = "cvpr"
 latex_engine = "xelatex"
+
+[agent]
+# 单次对话最大 Agent 步数；0 = 不设上限（建议仅在可随时 Ctrl-C / 点停止的任务里使用）
+max_steps = 30
 
 # [[servers]]
 # name = "gpu1"

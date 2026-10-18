@@ -185,6 +185,22 @@ sciforge pipeline run --recipe survey --topic "视频生成中的时空一致性
 sciforge pipeline run --recipe full   --topic "..."   # 全流程
 ```
 
+### Agent 步数上限
+
+一步 = 一次 LLM 决策 + 该决策调用的工具。默认每次任务最多 **30 步**：常见任务 3–8 步完成，30 步给多轮工具调研留足余量，同时避免失控循环。可这样改：
+
+- GUI 对话工具栏「步数」输入框（留空用配置默认值，`0` = 无上限）
+- CLI：`sciforge chat --max-steps 80`（`0` 表示无上限）
+- HTTP：`{"max_steps": 0}`
+- 配置文件：
+
+```toml
+[agent]
+max_steps = 30   # 0 = 无上限（谨慎）
+```
+
+`0` 会取消步数上限；但模型不再调用工具、LLM 报错、或你在 GUI 点「停止」/终端 Ctrl-C 时仍会结束。长任务建议用较大的有限值（如 100–200）而不是真正的无限循环——无上限意味着 token 与时间可能无界消耗。Pipeline 各阶段另有自己的较小预算（10–18，见 `sciforge/pipeline/recipes.py`）。
+
 ---
 
 ## 连接 GPU 服务器

@@ -108,11 +108,19 @@ class AgentLoop:
         final_content = ""
         stopped_reason = "max_steps"
         error: str | None = None
-        limit = max_steps or self.max_steps
+        override = max_steps if max_steps is not None else self.max_steps
+        try:
+            override_int = int(override)
+        except (TypeError, ValueError):
+            override_int = 30
+        # 0 / 负数 = 不设步数上限（由模型自行停止；仅建议在可人工终止的任务里使用）
+        limit: int | None = override_int if override_int > 0 else None
 
         self._emit("stage", {"stage": "agent_start", "task": task[:300]})
 
-        for step in range(1, limit + 1):
+        step = 0
+        while limit is None or step < limit:
+            step += 1
             steps = step
             on_delta = None
             if self.stream:

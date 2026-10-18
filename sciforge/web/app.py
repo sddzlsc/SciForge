@@ -94,7 +94,7 @@ class ChatRequest(BaseModel):
     message: str = ""
     mock: bool | None = None
     session_id: str | None = None
-    max_steps: int | None = Field(default=None, ge=1, le=100)
+    max_steps: int | None = Field(default=None, ge=0)  # 0 = 无上限
     attachments: list[str] = Field(default_factory=list)
     # 仅 mock 模式生效：用脚本 router 让 Agent 真实执行一次只读工具，
     # 以便无 API key 时演示「工具调用折叠卡片」；不伪造事件，工具确实被执行。

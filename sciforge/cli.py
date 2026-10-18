@@ -199,7 +199,9 @@ class ConsoleEventHandler:
                 console.print("[dim]artifacts: " + ", ".join(Path(f).name for f in files) + "[/dim]")
 
 
-def _build_agent(settings: Settings, project: Path | None, *, mock: bool, stream: bool, max_steps: int):
+def _build_agent(
+    settings: Settings, project: Path | None, *, mock: bool, stream: bool, max_steps: int | None
+):
     from sciforge.agent.runtime import make_agent, make_bus
 
     bus = make_bus(ConsoleEventHandler(stream=stream))
@@ -459,7 +461,9 @@ def chat(
     project: Path | None = typer.Option(None, "--project", "-p"),
     mock: bool = typer.Option(False, "--mock", help="离线 Mock 模式（不调用真实 LLM）"),
     stream: bool = typer.Option(True, "--stream/--no-stream", help="流式输出"),
-    max_steps: int = typer.Option(30, "--max-steps"),
+    max_steps: int | None = typer.Option(
+        None, "--max-steps", help="单次对话最大 Agent 步数；0 = 无上限（谨慎）"
+    ),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """与科研 Agent 对话（可调用文献/GPU/实验/写作/图表工具）。"""

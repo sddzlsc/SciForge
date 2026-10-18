@@ -85,7 +85,7 @@ def make_agent(
         system_prompt=load_system_prompt(language=settings.agent.language),
         tools=tools,
         role=role,
-        max_steps=max_steps or settings.agent.max_steps,
+        max_steps=max_steps if max_steps is not None else settings.agent.max_steps,
         approval=approval or settings.agent.approval,
         stream=stream,
         bus=bus,

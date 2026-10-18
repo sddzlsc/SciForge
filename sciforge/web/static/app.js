@@ -737,6 +737,12 @@
           session_id: state.chat.sessionId || null,
           demo_tools: Boolean(options && options.demoTools),
           attachments: pendingAttachments.map((item) => item.rel),
+          max_steps: (() => {
+            const raw = String(($('#chat-max-steps') || {}).value || '').trim();
+            if (raw === '') return null;
+            const value = Number(raw);
+            return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
+          })(),
         }),
         signal: controller.signal,
       });

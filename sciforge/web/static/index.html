@@ -228,7 +228,27 @@
               <span id="lit-source-badge" class="badge badge-ghost">未检索</span>
             </div>
             <form id="lit-form" class="search-row">
-              <input id="lit-query" type="search" placeholder="搜索主题 / 作者 / arXiv ID，例如：diffusion transformer">
+              <input id="lit-query" type="search" placeholder="搜索主题 / 作者 / DOI / arXiv ID，例如：diffusion transformer">
+              <select id="lit-source" aria-label="检索来源">
+                <option value="arxiv">arXiv</option>
+                <option value="pubmed">PubMed</option>
+                <option value="europe_pmc">Europe PMC</option>
+                <option value="openreview">OpenReview</option>
+                <option value="openalex">OpenAlex</option>
+                <option value="crossref">Crossref</option>
+                <option value="hf_papers">HF Papers</option>
+                <option value="daily">每日 arXiv</option>
+              </select>
+              <select id="lit-publisher" class="hidden" aria-label="出版社（Crossref）">
+                <option value="">全部出版社</option>
+                <option value="ieee">IEEE</option>
+                <option value="acm">ACM</option>
+                <option value="springer">Springer</option>
+                <option value="elsevier">ScienceDirect</option>
+                <option value="wiley">Wiley</option>
+                <option value="taylor_francis">Taylor &amp; Francis</option>
+                <option value="jstor">JSTOR</option>
+              </select>
               <button class="btn btn-primary" type="submit">搜索</button>
             </form>
             <div class="tabs" id="lit-tabs">

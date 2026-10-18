@@ -970,7 +970,7 @@
       '<div class="paper-foot">' +
       '<button type="button" class="btn btn-primary btn-sm" data-act="read" data-ctx="' + context + '" data-idx="' + index + '">精读</button>' +
       '<button type="button" class="btn btn-ghost btn-sm" data-act="add" data-ctx="' + context + '" data-idx="' + index + '">加入库</button>' +
-      (paper.url ? '<a class="btn btn-ghost btn-sm" href="' + escapeHtml(paper.url) + '" target="_blank" rel="noopener">arXiv ↗</a>' : '') +
+      (paper.url ? '<a class="btn btn-ghost btn-sm" href="' + escapeHtml(paper.url) + '" target="_blank" rel="noopener">原文 ↗</a>' : '') +
       (paper.pdf_url ? '<a class="btn btn-ghost btn-sm" href="' + escapeHtml(paper.pdf_url) + '" target="_blank" rel="noopener">PDF ↗</a>' : '') +
       '</div></article>';
   }
@@ -990,11 +990,15 @@
     box.innerHTML = emptyState('🔎', '检索中…');
     $('#lit-notice').classList.add('hidden');
     try {
-      const data = await api('/api/literature/search?query=' + encodeURIComponent(query || '') + '&limit=30');
+      const source = $('#lit-source').value || 'arxiv';
+      const publisher = source === 'crossref' ? ($('#lit-publisher').value || '') : '';
+      const data = await api('/api/literature/search?query=' + encodeURIComponent(query || '') +
+        '&limit=30&source=' + encodeURIComponent(source) +
+        (publisher ? '&publisher=' + encodeURIComponent(publisher) : ''));
       state.lit.current = data.papers || [];
       state.lit.loaded = true;
       const badge = $('#lit-source-badge');
-      badge.textContent = data.degraded ? '离线 Demo Fixtures' : 'lit_search · ' + (data.source || 'arxiv');
+      badge.textContent = data.degraded ? '离线 Demo Fixtures' : 'lit_search · ' + (data.search_source || data.source || 'arxiv');
       badge.className = 'badge ' + (data.degraded ? 'badge-warn' : 'badge-ok');
       if (data.notice) {
         $('#lit-notice').innerHTML = noticeHtml(data.notice, data.degraded ? 'warn' : '');
@@ -1067,7 +1071,15 @@
       '\n\n请输出结构化精读笔记：元信息 / 一句话总结 / 问题设定 / 方法拆解 / 实验证据 / 批判性评估 / 可迁移点。';
   }
 
+  function syncPublisherSelect() {
+    const source = $('#lit-source').value;
+    const publisher = $('#lit-publisher');
+    if (!publisher) return;
+    publisher.classList.toggle('hidden', source !== 'crossref');
+  }
+
   function bindLiterature() {
+    $('#lit-source').addEventListener('change', syncPublisherSelect);
     $('#lit-form').addEventListener('submit', (event) => {
       event.preventDefault();
       runLiteratureSearch($('#lit-query').value.trim());

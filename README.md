@@ -124,7 +124,9 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 
 ![GUI 服务器配置：填空 + SSH 测试](examples/demo/screenshots/gui-server-config.png)
 
-![GUI 文献检索设置：邮箱 / S2 Key / 每日语言](examples/demo/screenshots/gui-literature-config.png)
+![GUI 文献检索设置：免费源 / 出版社过滤 / 全文渠道](examples/demo/screenshots/gui-literature-config.png)
+
+![GUI 文献页：来源下拉（PubMed / Europe PMC / OpenReview / Crossref…）](examples/demo/screenshots/gui-literature-sources-search.png)
 
 ## 核心能力
 

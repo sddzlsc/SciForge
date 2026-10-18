@@ -1264,10 +1264,22 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             }
 
     @app.get("/api/literature/search")
-    def api_literature_search(query: str = "", limit: int = 12) -> dict[str, Any]:
+    def api_literature_search(
+        query: str = "",
+        limit: int = 12,
+        source: str = "arxiv",
+        publisher: str | None = None,
+    ) -> dict[str, Any]:
         """文献搜索：优先真实 lit_search 工具；未就绪时返回 demo fixtures（离线演示）。"""
         limit = max(1, min(int(limit), 50))
         query = (query or "").strip()
+        allowed_sources = {
+            "arxiv", "pubmed", "europe_pmc", "openreview",
+            "openalex", "crossref", "hf_papers", "daily",
+        }
+        source = (source or "arxiv").strip().lower()
+        if source not in allowed_sources:
+            source = "arxiv"
         if query:
             try:
                 from sciforge.agent.runtime import make_ctx
@@ -1280,7 +1292,10 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                         project_dir=project_dir,
                         session_id=f"web-lit-{uuid.uuid4().hex[:8]}",
                     )
-                    result = run_tool("lit_search", ctx, {"query": query, "limit": limit, "source": "arxiv"})
+                    tool_args: dict[str, Any] = {"query": query, "limit": limit, "source": source}
+                    if source == "crossref" and publisher:
+                        tool_args["publisher"] = publisher
+                    result = run_tool("lit_search", ctx, tool_args)
                     if result.ok:
                         data = result.data or {}
                         raw_papers = data.get("papers") or data.get("results") or []
@@ -1294,6 +1309,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                                 "ok": True,
                                 "available": True,
                                 "source": "lit_search",
+                                "search_source": source,
+                                "publisher": publisher if source == "crossref" else None,
                                 "query": query,
                                 "total": len(papers),
                                 "papers": papers[:limit],

@@ -334,7 +334,7 @@ Documentation is currently Chinese-first; English translations are welcome.
 
 ## Roadmap & limitations
 
-- `v0.1.0` is an MVP: you need your own LLM API key and a reachable GPU host
+- `v0.2.0` is an MVP: you need your own LLM API key and a reachable GPU host
 - PDF parsing quality depends on the paper layout and the model; complex equations may fail
 - Chinese databases (CNKI, Wanfang, VIP) and Web of Science / Scopus have no free APIs; use
   institutional access manually

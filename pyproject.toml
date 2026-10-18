@@ -1,6 +1,6 @@
 [project]
 name = "sciforge"
-version = "0.1.0"
+version = "0.2.0"
 description = "SciForge: 面向深度学习科研的本地智能体 Harness（文献→读论文→找创新点→实验→论文→顶会级配图），DeepSeek 驱动，可 SSH 调度 GPU 服务器。"
 readme = "README.md"
 license = { text = "MIT" }

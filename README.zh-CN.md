@@ -2,7 +2,7 @@
 
 [English](README.md) | 简体中文
 
-> GitHub: [sddzlsc/SciForge](https://github.com/sddzlsc/SciForge) · MIT License · 本地运行 / 可接任意 OpenAI 兼容模型
+> GitHub: [sddzlsc/SciForge](https://github.com/sddzlsc/SciForge) · MIT License · [更新日志](CHANGELOG.md) · 本地运行 / 可接任意 OpenAI 兼容模型
 
 [![CI](https://github.com/sddzlsc/SciForge/actions/workflows/ci.yml/badge.svg)](https://github.com/sddzlsc/SciForge/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/sddzlsc/SciForge)](https://github.com/sddzlsc/SciForge/releases)

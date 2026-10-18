@@ -20,7 +20,7 @@ from sciforge.core.events import EventBus
 from sciforge.core.registry import ToolContext
 from sciforge.llm.router import LLMRouter
 from sciforge.pipeline.control import RunControl
-from sciforge.pipeline.recipes import RECIPES, get_recipe
+from sciforge.pipeline.recipes import RECIPES, get_recipe, stage_recipe
 from sciforge.pipeline.types import PipelineRun, Recipe, Stage, StageResult
 
 STAGE_EVENT_PREFIX = "stage"
@@ -254,8 +254,15 @@ class PipelineRunner:
         skip_stages: list[str] | None = None,
         server: str | None = None,
         dataset: str | None = None,
+        stage: str | None = None,
+        step_mode: bool = False,
     ) -> PipelineRun:
-        recipe_obj = get_recipe(recipe) if isinstance(recipe, str) else recipe
+        if stage:
+            recipe_obj = stage_recipe(stage)
+            if recipe_obj is None:
+                raise ValueError(f"未知阶段: {stage}")
+        else:
+            recipe_obj = get_recipe(recipe) if isinstance(recipe, str) else recipe
         if recipe_obj is None:
             raise ValueError(f"未知 recipe: {recipe}（可用: {', '.join(RECIPES)}）")
 
@@ -269,6 +276,8 @@ class PipelineRunner:
             run_dir=run_dir,
             server=(server or "").strip() or None,
             dataset=(dataset or "").strip() or None,
+            stage=stage,
+            step_mode=bool(step_mode),
         )
         inputs = f"# 研究主题\n\n{topic}\n"
         if run.server:
@@ -284,16 +293,41 @@ class PipelineRunner:
                 "run_id": run.run_id,
                 "recipe": recipe_obj.name,
                 "topic": topic,
-                "stages": [s.name for s in recipe_obj.stages],
+                "stages": [{"name": s.name, "title": s.title} for s in recipe_obj.stages],
                 "run_dir": str(run.run_dir),
                 "server": run.server,
                 "dataset": run.dataset,
+                "stage": run.stage,
+                "step_mode": run.step_mode,
             },
         )
 
         skip = set(skip_stages or [])
         stopped_early = False
         for index, stage in enumerate(recipe_obj.stages, start=1):
+            if step_mode and not self.control.stopped:
+                run.status = "paused"
+                self._write_manifest(run)
+                self.control.pause()
+                self._emit(
+                    "stage",
+                    {
+                        "phase": "step_paused",
+                        "run_id": run.run_id,
+                        "index": index,
+                        "total": len(recipe_obj.stages),
+                        "next_stage": stage.name,
+                        "next_title": stage.title,
+                    },
+                )
+                if not self.control.wait_if_paused():
+                    run.status = "stopped"
+                    break
+                run.status = "running"
+                self._emit(
+                    "stage",
+                    {"phase": "resumed", "run_id": run.run_id, "name": stage.name, "index": index},
+                )
             if self.control.paused:
                 run.status = "paused"
                 self._write_manifest(run)

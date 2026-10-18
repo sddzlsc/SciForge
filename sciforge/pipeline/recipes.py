@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sciforge.pipeline.types import Recipe, Stage
 
 # 常用工具集（工具不存在时 AgentLoop 会自动忽略）
@@ -257,13 +259,28 @@ def get_recipe(name: str) -> Recipe | None:
     return RECIPES.get(name)
 
 
-def list_recipes() -> list[dict[str, str]]:
+def stage_recipe(stage_name: str) -> Recipe | None:
+    """把 full 流程中的单个阶段包成 recipe，用于对话顶部按 pipeline 顺序单步运行。"""
+    for stage in FULL_RECIPE.stages:
+        if stage.name == stage_name:
+            return Recipe(
+                name=f"stage-{stage.name}",
+                title=f"单阶段 · {stage.title}",
+                description=f"只运行全流程中的「{stage.title}」阶段",
+                stages=[stage],
+                tags=("stage", stage.name),
+            )
+    return None
+
+
+def list_recipes() -> list[dict[str, Any]]:
     return [
         {
             "name": recipe.name,
             "title": recipe.title,
             "description": recipe.description,
             "stages": ", ".join(stage.name for stage in recipe.stages),
+            "stage_details": [{"name": stage.name, "title": stage.title} for stage in recipe.stages],
             "tags": ", ".join(recipe.tags),
         }
         for recipe in RECIPES.values()
@@ -273,6 +290,7 @@ def list_recipes() -> list[dict[str, str]]:
 __all__ = [
     "RECIPES",
     "get_recipe",
+    "stage_recipe",
     "list_recipes",
     "FULL_RECIPE",
     "SURVEY_RECIPE",

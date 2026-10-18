@@ -108,6 +108,8 @@ class PipelineRunRequest(BaseModel):
     until: str | None = None
     server: str | None = None
     dataset: str | None = None
+    stage: str | None = None
+    step_mode: bool = False
 
 
 class SkillInstallRequest(BaseModel):
@@ -2016,6 +2018,17 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
         if not topic:
             raise HTTPException(status_code=400, detail="topic 不能为空")
         recipe = (req.recipe or settings.pipeline.default_recipe or "full").strip()
+        stage = (req.stage or "").strip() or None
+        if stage:
+            try:
+                from sciforge.pipeline.recipes import stage_recipe
+
+                if stage_recipe(stage) is None:
+                    raise HTTPException(status_code=400, detail=f"未知阶段：{stage}")
+            except HTTPException:
+                raise
+            except Exception:  # noqa: BLE001 - 引擎未就绪时交给后续逻辑
+                pass
         try:
             from sciforge.pipeline.engine import PipelineRunner  # noqa: F401
         except Exception as exc:  # noqa: BLE001
@@ -2034,6 +2047,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "topic": topic,
             "server": (req.server or "").strip() or None,
             "dataset": (req.dataset or "").strip() or None,
+            "stage": (req.stage or "").strip() or None,
+            "step_mode": bool(req.step_mode),
             "mock": mock,
             "status": "running",
             "started_at": _now_iso(),
@@ -2045,6 +2060,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "stages_plan": [],
             "current_stage": None,
             "paused": False,
+            "step_paused": False,
+            "next_stage": None,
             "stop_requested": False,
             "artifacts": [],
             "events": [],
@@ -2065,6 +2082,9 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                     record["status"] = "running"
                     record["run_id"] = payload.get("run_id")
                     record["stages_plan"] = list(payload.get("stages") or [])
+                    record["stage"] = payload.get("stage")
+                    record["step_mode"] = bool(payload.get("step_mode"))
+                    record["run_id"] = payload.get("run_id") or record.get("run_id")
                     raw_dir = payload.get("run_dir")
                     if raw_dir:
                         record["run_dir"] = _rel_posix(project_dir, raw_dir)
@@ -2095,12 +2115,19 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                     stages.sort(key=lambda item: int(item.get("index") or 0))
                     record["stages"] = stages
                     record["current_stage"] = None
+                elif phase == "step_paused":
+                    record["status"] = "paused"
+                    record["paused"] = True
+                    record["step_paused"] = True
+                    record["next_stage"] = payload.get("next_stage")
                 elif phase == "paused":
                     record["status"] = "paused"
                     record["paused"] = True
                 elif phase == "resumed":
                     record["status"] = "running"
                     record["paused"] = False
+                    record["step_paused"] = False
+                    record["next_stage"] = None
 
         bus.subscribe(on_event)
         with app.state.lock:
@@ -2114,7 +2141,13 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                 with app.state.lock:
                     app.state.pipeline_runners[api_run_id] = runner
                 run = runner.run(
-                    recipe, topic, until=req.until, server=req.server, dataset=req.dataset
+                    recipe,
+                    topic,
+                    until=req.until,
+                    server=req.server,
+                    dataset=req.dataset,
+                    stage=req.stage,
+                    step_mode=req.step_mode,
                 )
                 data = _jsonable(run, max_str=20000)
                 run_dir = None
@@ -2154,6 +2187,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "topic": topic,
             "server": record.get("server"),
             "dataset": record.get("dataset"),
+            "stage": record.get("stage"),
+            "step_mode": record.get("step_mode"),
             "status": "running",
             "poll": f"/api/pipeline/{api_run_id}",
         }
@@ -2231,9 +2266,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             enriched.append(entry)
         snapshot["stages"] = enriched
 
-        if base is not None:
-            report = base / "REPORT.md"
-            report_rel = _rel_posix(project_dir, report)
+        if base is not None and (base / "REPORT.md").is_file():
+            report_rel = _rel_posix(project_dir, base / "REPORT.md")
             snapshot["report_url"] = f"/files/{quote(report_rel)}" if report_rel else None
             snapshot["report_download"] = f"/api/download/{quote(report_rel)}" if report_rel else None
         else:
@@ -2277,19 +2311,56 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
 
     @app.post("/api/pipeline/{run_id}/stop")
     def api_pipeline_stop(run_id: str) -> dict[str, Any]:
+        key = run_id.strip()
         with app.state.lock:
-            runner = app.state.pipeline_runners.get(run_id.strip())
-            record = app.state.pipeline_runs.get(run_id.strip())
-        if record is None and runner is None:
-            raise HTTPException(status_code=404, detail=f"未找到 pipeline：{run_id}")
-        if runner is None:
-            return {"ok": False, "error": "pipeline 尚未开始或不受控制"}
-        runner.stop()
-        if record is not None:
-            with app.state.lock:
-                record["stop_requested"] = True
-                record["status"] = "stopping"
-        return {"ok": True, "stopped": True, "status": "stopping"}
+            runner = app.state.pipeline_runners.get(key)
+            record = app.state.pipeline_runs.get(key)
+            if runner is None:
+                # 兼容：前端可能持有 pipeline_run_id 而不是 API run_id
+                for api_id, item in app.state.pipeline_runs.items():
+                    rid = str(item.get("pipeline_run_id") or item.get("run_id") or api_id)
+                    if rid == key:
+                        runner = app.state.pipeline_runners.get(api_id)
+                        record = item
+                        break
+        if runner is not None:
+            runner.stop()
+            if record is not None:
+                with app.state.lock:
+                    record["stop_requested"] = True
+                    record["status"] = "stopping"
+            return {"ok": True, "stopped": True, "status": "stopping"}
+
+        # 服务重启后的历史 run：磁盘上没有线程可停，直接把状态置为 stopped
+        run_dir = project_dir / ".sciforge" / "runs" / key
+        manifest = run_dir / "run.json"
+        if manifest.is_file():
+            try:
+                data = json.loads(manifest.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                data = None
+            if isinstance(data, dict):
+                status = str(data.get("status") or "")
+                if status in {"running", "paused", "queued", "stopping"}:
+                    data["status"] = "stopped"
+                    data["finished_at"] = time.time()
+                    data["error"] = "用户手动停止（历史 run：服务重启后无活动线程）"
+                    try:
+                        manifest.write_text(
+                            json.dumps(data, ensure_ascii=False, indent=2, default=str),
+                            encoding="utf-8",
+                        )
+                    except OSError as exc:
+                        return {"ok": False, "error": f"写入 run.json 失败：{exc}"}
+                    return {
+                        "ok": True,
+                        "stopped": True,
+                        "status": "stopped",
+                        "source": "disk",
+                        "run_id": key,
+                    }
+                return {"ok": False, "error": f"run 状态是 {status}，无需停止", "status": status}
+        raise HTTPException(status_code=404, detail=f"未找到 pipeline：{run_id}")
 
     @app.get("/api/runs")
     def api_runs(limit: int = 20) -> dict[str, Any]:
@@ -2330,7 +2401,7 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                     "status": record.get("status"),
                     "started_at": record.get("started_at"),
                     "duration": record.get("duration"),
-                    "live": record.get("status") == "running",
+                    "live": record.get("status") in {"running", "paused", "stopping"},
                 }
                 for run_id, record in app.state.pipeline_runs.items()
             ]

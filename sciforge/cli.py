@@ -599,6 +599,10 @@ def pipeline_run(
     dataset: str | None = typer.Option(
         None, "--dataset", help="本地数据集路径（默认自动探测项目 data/ 目录）"
     ),
+    stage: str | None = typer.Option(None, "--stage", help="只运行 full 流程中的某一个阶段"),
+    step_mode: bool = typer.Option(
+        False, "--step-mode", help="单步模式：每个阶段开始前暂停，按继续执行下一步"
+    ),
     mock: bool = typer.Option(False, "--mock", help="离线 Mock 模式"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
@@ -614,7 +618,10 @@ def pipeline_run(
     bus = make_bus(ConsoleEventHandler())
     runner = PipelineRunner(settings, project, mock=mock, bus=bus)
     try:
-        run = runner.run(recipe, topic, until=until, server=server, dataset=dataset)
+        run = runner.run(
+            recipe, topic, until=until, server=server, dataset=dataset,
+            stage=stage, step_mode=step_mode,
+        )
     except KeyboardInterrupt as exc:
         err_console.print("[yellow]已中断[/yellow]")
         raise typer.Exit(130) from exc

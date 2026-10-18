@@ -101,7 +101,15 @@
         <section class="page active" id="page-chat" data-title="对话" data-subtitle="DeepSeek 驱动的科研 Agent，工具调用实时流式展示">
           <div class="chat-shell">
             <div class="chat-toolbar">
-              <div class="chips" id="quick-chips">
+              <div class="pipeline-nav-wrap">
+                <div class="pipeline-nav" id="pipeline-nav"><span class="muted">流水线加载中…</span></div>
+                <div class="pipeline-nav-actions">
+                  <button id="pipeline-btn" class="btn btn-primary btn-sm" type="button">▶ 全流程</button>
+                  <button id="pipeline-pause-btn" class="btn btn-ghost btn-sm" type="button" disabled>⏸ 暂停</button>
+                  <button id="pipeline-stop-btn" class="btn btn-ghost btn-sm" type="button" disabled>⏹ 停止</button>
+                </div>
+              </div>
+              <div class="chips quick-chips-row" id="quick-chips">
                 <button class="chip" type="button" data-prompt="帮我调研「扩散 Transformer 在视频生成中的高效注意力机制」的最新进展，给出研究空白和 3 个可做方向。">🔎 文献调研</button>
                 <button class="chip" type="button" data-prompt="汇总今天 cs.CV 的 arXiv 新论文，挑 3 篇最值得精读的，说明理由。">📰 每日 arXiv</button>
                 <button class="chip" type="button" data-prompt="精读一篇 ViT 代表论文，输出结构化精读笔记（问题 / 方法 / 实验 / 批判 / 可迁移点）。">📄 读论文</button>
@@ -122,7 +130,6 @@
                   <span>步数</span>
                   <input id="chat-max-steps" type="number" min="0" step="1" placeholder="默认">
                 </label>
-                <button id="pipeline-btn" class="btn btn-ghost btn-sm" type="button">🧪 流水线</button>
                 <button id="history-btn" class="btn btn-ghost btn-sm" type="button">🕘 历史</button>
                 <button id="new-session" class="btn btn-ghost btn-sm" type="button">新会话</button>
               </div>

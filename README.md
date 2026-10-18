@@ -59,6 +59,8 @@ Literature → Deep-read → Idea mining → Experiments on GPU → Analysis →
 
 ![GPU server configuration and SSH test](examples/demo/screenshots/gui-server-config.png)
 
+![Pipeline stages in order at the top of the chat, with step-by-step control](examples/demo/screenshots/gui-pipeline-in-chat.png)
+
 ## Quickstart
 
 ### 1. Install (Python ≥ 3.10)
@@ -198,16 +200,24 @@ per-stage status and artifacts.
 
 ### Run the pipeline inside the chat (pausable)
 
-Click **🧪 Pipeline** in the chat toolbar, fill in topic / server / dataset, and start. The run appears
-as a message in the conversation:
+The chat toolbar now shows all 13 pipeline stages **in order** at the top (scope → survey → read →
+ideate → GPU → data → design → code → run → analyze → figures → write → review). Click **▶ Full
+pipeline** to configure and start:
+
+- the top stage bar shows each stage's live state (pending / running / done / failed / next); click to jump to details
+- click a single stage to run **just that stage** as its own run (also pausable/stoppable)
+- with **step mode**, the pipeline pauses before every stage; click **▶ Next step** to advance
+- the run appears as a message in the conversation:
 
 - stage-by-stage status, duration and artifacts; **click a stage to expand its full output**
 - **⏸ pause / ▶ resume / ⏹ stop** at any time (pause takes effect at the next LLM step or stage boundary)
 - event log with stage transitions, tool calls and model steps
 - when finished: open the full report or download per-stage artifacts
 - the pipeline runs in the background, so the chat stays responsive
+- reloading the page restores the active pipeline card and its controls
 
-The Experiments page still keeps the historical run list for comparison.
+The Experiments page still keeps the historical run list for comparison; stale `running` runs left by a
+server restart can be stopped from the history table with **⏹ Stop**.
 
 Each run writes resumable artifacts:
 

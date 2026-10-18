@@ -182,3 +182,37 @@ def test_pipeline_pause_between_stages(sciforge_home: Path, project: Path, monke
     thread.join(timeout=15)
     assert not thread.is_alive()
     assert box["run"].status == "done"
+
+
+def test_stage_recipe_builds_single_stage() -> None:
+    from sciforge.pipeline.recipes import stage_recipe
+
+    recipe = stage_recipe("survey")
+    assert recipe is not None
+    assert [stage.name for stage in recipe.stages] == ["survey"]
+    assert stage_recipe("not-a-stage") is None
+
+
+def test_step_mode_pauses_before_first_stage(sciforge_home: Path, project: Path) -> None:
+    import threading
+    import time as _time
+
+    from sciforge.pipeline.engine import PipelineRunner
+
+    runner = PipelineRunner(get_settings(project), project, mock=True)
+    box: dict = {}
+    thread = threading.Thread(
+        target=lambda: box.setdefault("run", runner.run("figure", "step mode test", step_mode=True))
+    )
+    thread.start()
+    deadline = _time.time() + 8
+    while _time.time() < deadline and not runner.control.paused:
+        _time.sleep(0.02)
+    assert runner.control.paused is True
+    assert thread.is_alive()
+    runner.resume()
+    thread.join(timeout=15)
+    assert not thread.is_alive()
+    run = box["run"]
+    assert run.status == "done"
+    assert run.step_mode is True

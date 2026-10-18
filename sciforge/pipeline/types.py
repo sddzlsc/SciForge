@@ -61,6 +61,8 @@ class PipelineRun:
     run_dir: Path
     server: str | None = None
     dataset: str | None = None
+    stage: str | None = None
+    step_mode: bool = False
     status: str = "running"
     stages: list[StageResult] = field(default_factory=list)
     started_at: float = field(default_factory=time.time)
@@ -79,6 +81,8 @@ class PipelineRun:
             "run_dir": str(self.run_dir),
             "server": self.server,
             "dataset": self.dataset,
+            "stage": self.stage,
+            "step_mode": self.step_mode,
             "status": self.status,
             "started_at": self.started_at,
             "finished_at": self.finished_at,

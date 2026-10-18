@@ -1116,3 +1116,47 @@ def test_pipeline_control_endpoints(client: TestClient) -> None:
     assert stopped["ok"] is True
     assert runner.calls == ["pause", "resume", "stop"]
     assert client.post("/api/pipeline/unknown-run/pause").status_code == 404
+
+
+def test_pipeline_stop_stale_disk_run(client: TestClient, project: Path) -> None:
+    run_dir = project / ".sciforge" / "runs" / "20261018-220248-full-test"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    manifest = run_dir / "run.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "run_id": "20261018-220248-full-test",
+                "recipe": "full",
+                "topic": "stale test",
+                "status": "running",
+                "started_at": 1.0,
+                "finished_at": None,
+                "stages": [],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    data = client.post("/api/pipeline/20261018-220248-full-test/stop").json()
+    assert data["ok"] is True and data["status"] == "stopped"
+    saved = json.loads(manifest.read_text(encoding="utf-8"))
+    assert saved["status"] == "stopped"
+    assert saved["finished_at"] is not None
+
+
+def test_pipeline_run_single_stage(client: TestClient) -> None:
+    started = client.post(
+        "/api/pipeline/run",
+        json={"recipe": "full", "topic": "单阶段测试", "stage": "figures", "mock": True},
+    ).json()
+    if not started.get("ok"):
+        pytest.skip(f"pipeline 未就绪：{started.get('error')}")
+    assert started["stage"] == "figures"
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        run = client.get(f"/api/pipeline/{started['run_id']}").json()["run"]
+        if run["status"] != "running":
+            break
+        time.sleep(0.2)
+    assert run["status"] in {"done", "partial"}
+    assert [stage["name"] for stage in run["stages"]] == ["figures"]

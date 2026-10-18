@@ -422,7 +422,8 @@ class SkillManager:
   `POST /api/upload`（对话附件）、`POST /api/servers/{name}/upload`（上传到 GPU）；
   `GET /api/download/{path}`（浏览器下载项目文件）、`GET /api/servers/{name}/metrics`（GPU 实时指标）；
   `GET /api/sessions`、`GET /api/sessions/{id}`（历史会话列表/详情，供 GUI 恢复上下文）；
-  `POST /api/pipeline/{id}/pause|resume|stop`（对话内流水线运行控制）。
+  `POST /api/pipeline/{id}/pause|resume|stop`（对话内流水线运行控制；历史 run 也支持置为 stopped）；
+  `/api/pipeline/run` 支持 `stage`（单阶段）与 `step_mode`（每阶段前暂停）。
 - 实现可额外提供前端所需端点（不属于契约、不破坏上述约定）：`/api/recipes`、
   `/api/literature/search`、`/api/library/add`、`/api/paper/read`、`/api/gpu`、
   `/api/artifacts`、`POST /api/skills/install-dsh`、`POST /api/skills/install`、

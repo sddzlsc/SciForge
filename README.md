@@ -2,6 +2,10 @@
 
 > GitHub: [sddzlsc/SciForge](https://github.com/sddzlsc/SciForge) · MIT License · 本地运行 / 可接任意 OpenAI 兼容模型
 
+[![CI](https://github.com/sddzlsc/SciForge/actions/workflows/ci.yml/badge.svg)](https://github.com/sddzlsc/SciForge/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/sddzlsc/SciForge)](https://github.com/sddzlsc/SciForge/releases)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/sddzlsc/SciForge)
+
 > **本地运行 · DeepSeek 驱动 · 可 SSH 调度 GPU 集群 · 从文献到顶会论文与配图**
 >
 > 文献获取 → 读论文 → 找创新点 → 模块化实验 → 远程训练 → 结果分析 → 论文写作 → 顶刊/顶会级模型图

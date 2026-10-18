@@ -19,7 +19,7 @@ jobs:
           enable-cache: true
       - name: Create venv & install
         run: |
-          uv venv --python ${{ matrix.python-version }} .venv
+          uv venv --clear --python ${{ matrix.python-version }} .venv
           uv pip install --python .venv/bin/python -e ".[dev]"
       - name: Lint
         run: .venv/bin/ruff check sciforge tests

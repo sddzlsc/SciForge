@@ -29,7 +29,7 @@ SCIFORGE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -m integration -q
 | test_remote / test_experiments | SSH 命令构造、nvidia-smi/squeue/sacct 解析、run.json 状态机、结果汇总 |
 | test_figures / test_writing | 架构图 SVG 合法性、三线表、LaTeX 工程、BibTeX 去重、check |
 | test_skills | Skill 解析/lint/安装/DSH 目标隔离/外部目录 |
-| test_web | SSE 对话、pipeline 轮询、目录穿越防护、脱敏、静态页 |
+| test_web | SSE 对话、pipeline 轮询、目录穿越防护、脱敏、静态页、文件上传/附件注入/GPU 上传 |
 
 GUI 实跑验收（2026-10-18）：`sciforge gui` 启动后 headless Chrome 逐页截图；
 `POST /api/chat` 返回 `meta/stage/llm_delta/...` 事件流，`POST /api/pipeline/run` 后台完成并轮询到 `done`。
@@ -52,6 +52,7 @@ GUI 实跑验收（2026-10-18）：`sciforge gui` 启动后 headless Chrome 逐�
 - 文献渠道实测（2026-10-18）：arXiv ✅ / daily-arXiv ✅ / OpenAlex ✅ / Crossref ✅ / HF Papers ✅（Semantic Scholar 已按需求从界面移除）
 - 全文链路：arXiv PDF 下载成功；Unpaywall 需邮箱；instsci 为可选机构访问；不集成 Sci-Hub（版权风险）
 - GUI 配置实测：模型 Provider 新增/测试（Web 端验证脱敏与持久化）、GPU 服务器保存/SSH 失败反馈、文献设置（OA 邮箱/每日语言）保存；`config.toml` 0600
+- 文件上传实测：`POST /api/upload` 保存到项目 `uploads/` 并回传文本预览；带附件 mock 对话的任务上下文中出现附件内容；GPU 上传端点以注入式 SSH 执行器验证
 - daily-arXiv-ai-enhanced：`sciforge lit daily --category cs.CV --limit 3` → 中文增强摘要 + 文献库
 - 示例论文精读：`sciforge read examples/demo/fixtures/paper.pdf` → pymupdf 提取 4 页、章节结构完整
 - 实验骨架：`sciforge exp scaffold --template cv-classification` → `bash scripts/smoke.sh` → `SMOKE OK`

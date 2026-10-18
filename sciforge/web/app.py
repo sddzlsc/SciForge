@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -59,6 +59,12 @@ FIXTURES_DIR = REPO_ROOT / "examples" / "demo" / "fixtures"
 CHAT_TIMEOUT_SECONDS = float(os.environ.get("SCIFORGE_WEB_CHAT_TIMEOUT", "300"))
 #: GPU 探测（SSH 执行 nvidia-smi）最长等待时间（秒）。
 GPU_PROBE_TIMEOUT = float(os.environ.get("SCIFORGE_WEB_GPU_TIMEOUT", "15"))
+#: 文件上传
+UPLOAD_DIRNAME = "uploads"
+MAX_UPLOAD_BYTES = 64 * 1024 * 1024
+MAX_ATTACHMENT_CONTEXT = 30000
+_TEXT_EXTS = {".txt", ".md", ".markdown", ".json", ".jsonl", ".csv", ".tsv", ".yaml", ".yml", ".py", ".tex", ".bib", ".log", ".html", ".htm", ".ipynb"}
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".bmp"}
 #: SSE 心跳间隔（秒），防止反向代理断开空闲连接。
 SSE_HEARTBEAT_SECONDS = 15.0
 
@@ -89,6 +95,7 @@ class ChatRequest(BaseModel):
     mock: bool | None = None
     session_id: str | None = None
     max_steps: int | None = Field(default=None, ge=1, le=100)
+    attachments: list[str] = Field(default_factory=list)
     # 仅 mock 模式生效：用脚本 router 让 Agent 真实执行一次只读工具，
     # 以便无 API key 时演示「工具调用折叠卡片」；不伪造事件，工具确实被执行。
     demo_tools: bool = False
@@ -452,6 +459,142 @@ def _roles_public(settings: Settings) -> dict[str, dict[str, Any]]:
 def _mask_url(url: str) -> str:
     """日志/错误里避免泄露 URL 里的 user:pass。"""
     return re.sub(r"//[^/@\s]+@", "//***@", str(url))
+
+
+# ---------------------------------------------------------------------------
+# 文件上传（给模型做附件 / 给 GPU 服务器）
+# ---------------------------------------------------------------------------
+
+
+def _safe_upload_name(filename: str) -> str:
+    name = Path(str(filename or "file")).name
+    name = re.sub(r"[^\w.\-\u4e00-\u9fff]+", "_", name).strip("._")
+    return (name[:120] or "file")
+
+
+def _upload_kind(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in _TEXT_EXTS or suffix == "":
+        return "text"
+    if suffix == ".pdf":
+        return "pdf"
+    if suffix in _IMAGE_EXTS:
+        return "image"
+    if suffix in {".docx", ".pptx", ".xlsx"}:
+        return "office"
+    return "other"
+
+
+def _extract_upload_text(path: Path, *, limit: int = 12000) -> str:
+    """尽力提取文本（txt/markdown/pdf）；失败返回空串，不阻断上传。"""
+    kind = _upload_kind(path)
+    text = ""
+    try:
+        if kind == "text":
+            text = path.read_text(encoding="utf-8", errors="replace")
+        elif kind == "pdf":
+            try:
+                import fitz  # type: ignore[import-not-found]  # pymupdf
+
+                with fitz.open(str(path)) as doc:
+                    text = "\n".join(page.get_text() for page in doc)
+            except Exception:  # noqa: BLE001
+                from pypdf import PdfReader
+
+                reader = PdfReader(str(path))
+                text = "\n".join((page.extract_text() or "") for page in reader.pages[:50])
+    except Exception:  # noqa: BLE001
+        return ""
+    return text[:limit]
+
+
+def _save_uploads(files: list[UploadFile], project_dir: Path) -> list[dict[str, Any]]:
+    upload_dir = project_dir / UPLOAD_DIRNAME
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    saved: list[dict[str, Any]] = []
+    for upload in files or []:
+        filename = getattr(upload, "filename", "") or ""
+        if not filename:
+            continue
+        safe = _safe_upload_name(filename)
+        stored = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}-{safe}"
+        target = upload_dir / stored
+        size = 0
+        try:
+            with target.open("wb") as handle:
+                while True:
+                    chunk = upload.file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > MAX_UPLOAD_BYTES:
+                        raise HTTPException(status_code=413, detail=f"文件过大：{filename}（上限 64MB）")
+                    handle.write(chunk)
+        except HTTPException:
+            target.unlink(missing_ok=True)
+            raise
+        except Exception as exc:  # noqa: BLE001
+            target.unlink(missing_ok=True)
+            raise HTTPException(status_code=400, detail=f"保存文件失败：{type(exc).__name__}: {exc}") from exc
+        saved.append(
+            {
+                "name": filename,
+                "stored_name": stored,
+                "path": str(target),
+                "rel": f"{UPLOAD_DIRNAME}/{stored}",
+                "size": size,
+                "kind": _upload_kind(target),
+            }
+        )
+    if not saved:
+        raise HTTPException(status_code=400, detail="没有收到文件")
+    return saved
+
+
+def _resolve_attachment(value: str, project_dir: Path) -> Path:
+    raw = str(value or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="附件路径为空")
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute():
+        candidate = project_dir / candidate
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(project_dir.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"附件必须位于项目目录内：{raw}") from exc
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail=f"附件不存在：{raw}")
+    return candidate
+
+
+def _attachment_context(paths: list[str], project_dir: Path) -> str:
+    """把上传附件整理成给 LLM 的上下文（文本/PDF 自动摘录，其余给路径）。"""
+    if not paths:
+        return ""
+    blocks: list[str] = []
+    budget = MAX_ATTACHMENT_CONTEXT
+    for value in paths:
+        path = _resolve_attachment(value, project_dir)
+        kind = _upload_kind(path)
+        size_kb = path.stat().st_size / 1024
+        block = f"- 文件: {path.name}（类型 {kind}, {size_kb:.1f} KB, 路径 {path.relative_to(project_dir)}）"
+        if kind in ("text", "pdf"):
+            text = _extract_upload_text(path, limit=min(6000, max(1000, budget)))
+            if text.strip():
+                block += "\n  内容摘录：\n" + "\n".join("    " + line for line in text.splitlines()[:200])
+            else:
+                block += "\n  （未提取到文本；可用 read_file / paper_read 工具读取该路径）"
+        elif kind == "image":
+            block += "\n  （图片已保存；当前文本模型无法直接看图，可让用户描述内容，或用支持视觉的模型服务）"
+        else:
+            block += "\n  （未自动提取文本；可用 read_file / paper_read 工具读取）"
+        budget -= len(block)
+        blocks.append(block)
+        if budget <= 0:
+            blocks.append("- …附件过多，剩余内容请用 read_file 工具按需读取")
+            break
+    return "\n\n[用户上传的附件]\n" + "\n".join(blocks) + "\n[/附件]\n请结合附件内容回答；内容未展示全时用工具读取上面的路径。\n"
 
 
 # ---------------------------------------------------------------------------
@@ -875,6 +1018,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             raise HTTPException(status_code=413, detail="message 过长（上限 20000 字符）")
         session_id = _clean_session_id(req.session_id) or _new_session_id()
         mock = _auto_mock(settings, req.mock)
+        attachment_context = _attachment_context(req.attachments, project_dir)
+        task_message = message + attachment_context
 
         event_queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=20000)
         bus = EventBus()
@@ -934,7 +1079,7 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                     stream=True,
                     max_steps=req.max_steps,
                 )
-                result = agent.run(message, history=history or None)
+                result = agent.run(task_message, history=history or None)
                 _store_history(app, session_id, result)
                 done_payload = {
                     "ok": result.error is None,
@@ -1452,6 +1597,93 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "latency_ms": round((time.monotonic() - started) * 1000),
             "content": (getattr(response, "content", "") or "")[:1200],
             "usage": _jsonable(getattr(response, "usage", None), max_str=2000),
+        }
+
+    # ---------------------------- 文件上传（对话附件 / GPU） ----------------------------
+    @app.post("/api/upload")
+    def api_upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
+        """上传文件到项目 uploads/；返回路径与文本预览，供对话附件使用。"""
+        saved = _save_uploads(files, project_dir)
+        for item in saved:
+            item["text_preview"] = _extract_upload_text(Path(item["path"]), limit=2000)
+        return {
+            "ok": True,
+            "count": len(saved),
+            "files": saved,
+            "upload_dir": str(project_dir / UPLOAD_DIRNAME),
+            "max_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
+        }
+
+    @app.post("/api/servers/{name}/upload")
+    def api_server_upload(
+        name: str,
+        files: list[UploadFile] = File(...),
+        remote_dir: str | None = Form(None),
+    ) -> dict[str, Any]:
+        """上传文件到指定 GPU 服务器（浏览器 → 本机 uploads/ → rsync/scp）。"""
+        server = settings.server(name)
+        if server is None:
+            raise HTTPException(status_code=404, detail=f"服务器不存在：{name}")
+        try:
+            from sciforge.tools.remote import SSHExecutor
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "ok": False,
+                "available": False,
+                "server": name,
+                "error": f"远程执行模块未就绪：{type(exc).__name__}: {exc}",
+            }
+        saved = _save_uploads(files, project_dir)
+        local_paths = [item["path"] for item in saved]
+        target_dir = (remote_dir or server.workdir or "~/sciforge").strip()
+        started = time.monotonic()
+        box: dict[str, Any] = {}
+
+        def upload() -> None:
+            try:
+                result = SSHExecutor(server).upload_paths(local_paths, target_dir)
+                box["result"] = result
+            except Exception as exc:  # noqa: BLE001
+                box["error"] = f"{type(exc).__name__}: {_mask_url(str(exc))[:600]}"
+
+        thread = threading.Thread(target=upload, name="sciforge-upload", daemon=True)
+        thread.start()
+        thread.join(timeout=180)
+        latency = round(time.monotonic() - started, 2)
+        if thread.is_alive():
+            return {
+                "ok": False,
+                "available": True,
+                "server": name,
+                "remote_dir": target_dir,
+                "files": saved,
+                "error": "上传超时（>180s）：检查服务器连通性 / 网络带宽 / 文件大小",
+                "latency_s": latency,
+            }
+        if "error" in box:
+            return {
+                "ok": False,
+                "available": True,
+                "server": name,
+                "remote_dir": target_dir,
+                "files": saved,
+                "error": box["error"],
+                "latency_s": latency,
+            }
+        result = box.get("result")
+        stdout = str(getattr(result, "stdout", "") or "")[:4000]
+        stderr = str(getattr(result, "stderr", "") or "")[:4000]
+        ok = bool(getattr(result, "rc", 1) == 0)
+        return {
+            "ok": ok,
+            "available": True,
+            "server": name,
+            "remote_dir": target_dir,
+            "files": saved,
+            "stdout": stdout,
+            "stderr": stderr,
+            "error": None if ok else (stderr or "上传失败（见 stderr）"),
+            "latency_s": latency,
         }
 
     # ---------------------------- 文献检索与全文设置（GUI） ----------------------------

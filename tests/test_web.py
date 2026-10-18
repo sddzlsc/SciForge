@@ -877,3 +877,79 @@ def test_server_password_auth_save_and_mask(client: TestClient, env) -> None:
     assert cleared.status_code == 200
     assert cleared.json()["server"]["has_password"] is False
     assert "autodl-secret-pw" not in global_config_path().read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# 文件上传：对话附件 / GPU
+# ---------------------------------------------------------------------------
+
+
+def test_upload_file_and_chat_attachment(client: TestClient, project: Path) -> None:
+    text = "这是一份实验记录：baseline 76.1，ours 79.2。\n"
+    resp = client.post(
+        "/api/upload",
+        files=[("files", ("exp-note.txt", text.encode("utf-8"), "text/plain"))],
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["ok"] is True and data["count"] == 1
+    item = data["files"][0]
+    assert item["rel"].startswith("uploads/")
+    assert (project / item["rel"]).exists()
+    assert "baseline 76.1" in item["text_preview"]
+
+    # 带附件发起 mock 对话：附件内容进入 Agent 任务上下文
+    chat = client.post(
+        "/api/chat",
+        json={"message": "总结这份记录", "mock": True, "attachments": [item["rel"]]},
+    )
+    assert chat.status_code == 200
+    events = parse_sse(chat.text.splitlines())
+    assert any(event["event"] == "done" for event in events)
+    done = next(event for event in events if event["event"] == "done")
+    session_id = done["data"]["session_id"]
+    transcript = project / ".sciforge" / "sessions" / session_id / "transcript.json"
+    assert transcript.exists()
+    raw = transcript.read_text(encoding="utf-8")
+    assert "用户上传的附件" in raw
+    assert "baseline 76.1" in raw
+
+
+def test_attachment_outside_project_rejected(client: TestClient) -> None:
+    resp = client.post(
+        "/api/chat",
+        json={"message": "x", "mock": True, "attachments": ["../outside.txt"]},
+    )
+    assert resp.status_code == 400
+
+
+def test_server_upload_endpoint(client: TestClient, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from sciforge.tools.remote import RemoteResult
+
+    client.post("/api/servers", json={"name": "gpu-up", "host": "10.0.0.2", "user": "root"})
+    calls: dict = {}
+
+    def fake_upload(self, local_paths, remote_dir, **kwargs):  # noqa: ANN001, ANN003
+        calls["paths"] = [str(Path(item).name) for item in local_paths]
+        calls["remote_dir"] = remote_dir
+        return RemoteResult(0, "uploaded 1 file", "")
+
+    monkeypatch.setattr("sciforge.tools.remote.SSHExecutor.upload_paths", fake_upload)
+    resp = client.post(
+        "/api/servers/gpu-up/upload",
+        files=[("files", ("weights-notes.md", b"# notes\nhello", "text/markdown"))],
+        data={"remote_dir": "~/sciforge/data"},
+    )
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["ok"] is True
+    assert payload["remote_dir"] == "~/sciforge/data"
+    assert payload["files"][0]["name"] == "weights-notes.md"
+    assert calls["remote_dir"] == "~/sciforge/data"
+    assert calls["paths"] and calls["paths"][0].endswith("weights-notes.md")
+
+    missing = client.post(
+        "/api/servers/nope/upload",
+        files=[("files", ("a.txt", b"x", "text/plain"))],
+    )
+    assert missing.status_code == 404

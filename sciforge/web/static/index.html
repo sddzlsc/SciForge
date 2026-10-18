@@ -139,9 +139,14 @@
 
             <div id="chat-status" class="chat-status hidden"></div>
 
+            <div id="chat-attachments" class="attach-bar hidden"></div>
             <form id="chat-form" class="composer" autocomplete="off">
-              <textarea id="chat-input" rows="1" placeholder="描述你的科研任务…（Enter 发送，Shift+Enter 换行）"></textarea>
+              <textarea id="chat-input" rows="1" placeholder="描述你的科研任务…（Enter 发送，Shift+Enter 换行；可先点 📎 上传文件）"></textarea>
               <div class="composer-actions">
+                <label class="attach-btn" title="上传文件作为对话附件（txt/md/json/pdf 等）">
+                  📎 附件
+                  <input type="file" id="chat-file-input" multiple hidden>
+                </label>
                 <span id="session-label" class="session-label">新会话</span>
                 <div class="composer-buttons">
                   <button type="button" id="chat-stop" class="btn btn-ghost btn-sm hidden">停止</button>
@@ -304,6 +309,20 @@
               <div class="empty"><span class="empty-icon">🖥️</span><p>正在读取服务器配置…</p></div>
             </div>
           </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>上传文件到 GPU</h2>
+              <span class="muted">浏览器 → 本机 uploads/ → rsync / scp 到服务器</span>
+            </div>
+            <div class="run-form">
+              <label class="field"><span>目标服务器</span><select id="srv-upload-target"></select></label>
+              <label class="field"><span>远端目录（留空用 workdir）</span><input id="srv-upload-dir" placeholder="~/sciforge/data" spellcheck="false"></label>
+              <label class="field grow"><span>选择文件</span><input id="srv-upload-files" type="file" multiple></label>
+              <button class="btn btn-primary" id="srv-upload-btn" type="button">上传</button>
+            </div>
+            <div id="srv-upload-notice" class="notice hidden"></div>
+          </div>
+
           <div class="panel">
             <div class="panel-head">
               <h2>GPU 状态</h2>

@@ -91,6 +91,7 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 | 大模型 Provider | 模型 | 名称 / Base URL / 模型 / API Key（或环境变量名）/ 角色路由；支持「保存并测试」 |
 | GPU 服务器 | 服务器 | **粘贴 ssh 登录命令自动解析**，或填 host/端口/用户/私钥/**密码**；支持「保存并测试 SSH」 |
 | 文献检索 | 文献 | 邮箱（Unpaywall OA）、每日 arXiv 语言；检索/全文渠道可用状态一目了然 |
+| 文件上传 | 对话 / 服务器 | 对话附件（PDF/TXT/MD 自动读入上下文）；文件上传到 GPU（见 [docs/FILES.md](docs/FILES.md)） |
 
 | 页面 | 能力 |
 |---|---|
@@ -107,7 +108,7 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 
 实跑截图（由 `sciforge gui` 启动后截取）：
 
-![GUI 对话：流式工具调用](examples/demo/screenshots/live-console-chat.png)
+![GUI 对话：流式工具调用 + 附件上传](examples/demo/screenshots/gui-chat-attachments.png)
 
 ![GUI 文献：实时 arXiv 与 demo fixtures](examples/demo/screenshots/live-console-literature.png)
 

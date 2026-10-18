@@ -14,6 +14,7 @@
     page: 'chat',
     mock: true,
     chat: {
+      attachments: [],
       sessionId: null,
       streaming: false,
       controller: null,
@@ -399,7 +400,7 @@
     if (welcome) welcome.remove();
   }
 
-  function addUserMessage(text) {
+  function addUserMessage(text, attachments) {
     hideWelcome();
     const wrap = el('div', 'msg user');
     wrap.innerHTML =
@@ -407,8 +408,54 @@
       '<div class="msg-body"><div class="msg-meta"><span class="msg-role">You</span></div>' +
       '<div class="msg-content"></div></div>';
     wrap.querySelector('.msg-content').textContent = text;
+    const chips = Array.isArray(attachments) ? attachments : [];
+    if (chips.length) {
+      const bar = el('div', 'attach-bar');
+      chips.forEach((item) => {
+        const chip = el('span', 'attach-chip', '📎 ' + (item.name || 'file'));
+        bar.appendChild(chip);
+      });
+      wrap.querySelector('.msg-body').appendChild(bar);
+    }
     $('#chat-messages').appendChild(wrap);
     scrollChat(true);
+  }
+
+  /* ---------- 对话附件上传 ---------- */
+  function renderChatAttachments() {
+    const bar = $('#chat-attachments');
+    if (!bar) return;
+    if (!state.chat.attachments.length) {
+      bar.classList.add('hidden');
+      bar.innerHTML = '';
+      return;
+    }
+    bar.classList.remove('hidden');
+    bar.innerHTML = state.chat.attachments.map((item, index) =>
+      '<span class="attach-chip"><span class="ac-name">📎 ' + escapeHtml(item.name || 'file') + '</span>' +
+      '<span class="muted">' + fmtBytes(item.size || 0) + '</span>' +
+      '<button type="button" data-remove-attach="' + index + '" title="移除">✕</button></span>'
+    ).join('');
+  }
+
+  async function uploadChatFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    toast('正在上传 ' + files.length + ' 个文件…', 'info', 3000);
+    const form = new FormData();
+    files.forEach((file) => form.append('files', file));
+    try {
+      const resp = await fetch('/api/upload', { method: 'POST', body: form });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok || !data || !data.ok) {
+        throw new Error((data && (data.detail || data.error)) || ('HTTP ' + resp.status));
+      }
+      (data.files || []).forEach((item) => state.chat.attachments.push(item));
+      renderChatAttachments();
+      toast('已附上 ' + (data.count || 0) + ' 个文件，发送时会自动带给模型', 'ok', 4500);
+    } catch (err) {
+      toast('上传失败：' + err.message, 'err', 8000);
+    }
   }
 
   function ensureAssistant() {
@@ -657,10 +704,14 @@
   }
 
   async function sendChat(message, options) {
-    const text = String(message || '').trim();
+    const hasAttachments = state.chat.attachments.length > 0;
+    const text = String(message || '').trim() || (hasAttachments ? '请阅读附件内容，总结与我研究相关的要点。' : '');
     if (!text || state.chat.streaming) return;
+    const pendingAttachments = state.chat.attachments.slice();
     hideWelcome();
-    addUserMessage(text);
+    addUserMessage(text, pendingAttachments);
+    state.chat.attachments = [];
+    renderChatAttachments();
     state.chat.buffer = '';
     state.chat.assistant = null;
     state.chat.pendingTools = [];
@@ -682,6 +733,7 @@
           mock: $('#mock-toggle').checked,
           session_id: state.chat.sessionId || null,
           demo_tools: Boolean(options && options.demoTools),
+          attachments: pendingAttachments.map((item) => item.rel),
         }),
         signal: controller.signal,
       });
@@ -743,6 +795,8 @@
     state.chat.assistant = null;
     state.chat.pendingTools = [];
     state.chat.buffer = '';
+    state.chat.attachments = [];
+    renderChatAttachments();
     $('#session-label').textContent = '新会话';
     renderChatStatus([]);
     $('#chat-messages').innerHTML =
@@ -781,6 +835,28 @@
     });
     $('#chat-stop').addEventListener('click', () => {
       if (state.chat.controller) state.chat.controller.abort();
+    });
+    $('#chat-file-input').addEventListener('change', (event) => {
+      uploadChatFiles(event.target.files);
+      event.target.value = '';
+    });
+    $('#chat-attachments').addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-remove-attach]');
+      if (!btn) return;
+      state.chat.attachments.splice(Number(btn.dataset.removeAttach), 1);
+      renderChatAttachments();
+    });
+    form.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      form.classList.add('dragging');
+    });
+    form.addEventListener('dragleave', () => form.classList.remove('dragging'));
+    form.addEventListener('drop', (event) => {
+      event.preventDefault();
+      form.classList.remove('dragging');
+      if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+        uploadChatFiles(event.dataTransfer.files);
+      }
     });
     $('#new-session').addEventListener('click', resetChat);
     document.querySelectorAll('#quick-chips .chip').forEach((chip) => {
@@ -1068,6 +1144,14 @@
     }
     $('#srv-notice').innerHTML = '';
     list.innerHTML = state.servers.map(serverCard).join('');
+    const uploadTarget = $('#srv-upload-target');
+    if (uploadTarget) {
+      const current = uploadTarget.value;
+      uploadTarget.innerHTML = state.servers.map((item) =>
+        '<option value="' + escapeHtml(item.name) + '">' + escapeHtml(item.name) + ' — ' + escapeHtml(item.host) + '</option>'
+      ).join('') || '<option value="">（请先添加服务器）</option>';
+      if (current) uploadTarget.value = current;
+    }
     list.querySelectorAll('button[data-gpu-server]').forEach((btn) => {
       btn.addEventListener('click', () => probeGpu(btn.dataset.gpuServer));
     });
@@ -1330,7 +1414,60 @@
     }
   }
 
+  async function uploadFilesToServer() {
+    const server = $('#srv-upload-target').value;
+    const input = $('#srv-upload-files');
+    const files = Array.from(input.files || []);
+    const notice = $('#srv-upload-notice');
+    notice.classList.remove('hidden');
+    if (!server) {
+      notice.innerHTML = noticeHtml('请先在下方添加一台 GPU 服务器', 'warn');
+      return;
+    }
+    if (!files.length) {
+      notice.innerHTML = noticeHtml('请选择要上传的文件', 'warn');
+      return;
+    }
+    const button = $('#srv-upload-btn');
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = '上传中…';
+    notice.innerHTML = noticeHtml('正在上传 ' + files.length + ' 个文件到 ' + server + '（浏览器 → 本机 → rsync/scp，最多 180s）…', 'info');
+    const form = new FormData();
+    files.forEach((file) => form.append('files', file));
+    const remoteDir = $('#srv-upload-dir').value.trim();
+    if (remoteDir) form.append('remote_dir', remoteDir);
+    try {
+      const resp = await fetch('/api/servers/' + encodeURIComponent(server) + '/upload', { method: 'POST', body: form });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) throw new Error((data && (data.detail || data.error)) || ('HTTP ' + resp.status));
+      if (!data.ok) {
+        notice.innerHTML = noticeHtml('上传失败：' + (data.error || '未知错误'), 'err') +
+          (data.stderr ? '<pre class="code-block">' + escapeHtml(data.stderr) + '</pre>' : '');
+        return;
+      }
+      const lines = [
+        '服务器: ' + data.server,
+        '远端目录: ' + data.remote_dir,
+        '文件: ' + (data.files || []).map((item) => item.name).join(', '),
+        '耗时: ' + data.latency_s + 's',
+        '',
+        (data.stdout || data.stderr || 'ok').trim(),
+      ];
+      notice.innerHTML = noticeHtml('上传成功', 'info') + '<pre class="code-block">' + escapeHtml(lines.join('\n')) + '</pre>';
+      input.value = '';
+      toast('已上传 ' + (data.files || []).length + ' 个文件到 ' + data.server, 'ok', 5000);
+    } catch (err) {
+      notice.innerHTML = noticeHtml('上传失败：' + err.message, 'err');
+      toast('上传失败：' + err.message, 'err', 8000);
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+
   function bindServers() {
+    $('#srv-upload-btn').addEventListener('click', uploadFilesToServer);
     $('#srv-parse-btn').addEventListener('click', parseSshCommand);
     $('#srv-command').addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {

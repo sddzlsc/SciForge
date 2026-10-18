@@ -77,6 +77,8 @@ sciforge write compile
 
 ## 8. 可视化 GUI（本地网页）
 
+提示：对话页可点 **📎 附件** 上传文件（PDF/TXT/MD 自动读入上下文）；服务器页可把文件直接上传到 GPU。
+
 ```bash
 sciforge gui                     # 启动并自动打开浏览器：http://127.0.0.1:8765
 sciforge gui --project ~/my-research --port 8765

@@ -1193,3 +1193,40 @@ details.panel #lit-config-notice, details.panel #lit-sources { margin-top: 12px;
 /* SSH 命令粘贴 + 解析 */
 .input-action { display: flex; gap: 8px; align-items: stretch; }
 .input-action input { flex: 1; min-width: 0; }
+
+
+/* 对话附件 */
+.attach-bar { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 10px 0; }
+.attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-3);
+  font-size: 11.5px;
+  color: var(--muted);
+  max-width: 100%;
+}
+.attach-chip .ac-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.attach-chip button { background: none; border: none; color: var(--muted-2); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+.attach-chip button:hover { color: var(--err); }
+.attach-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xs);
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  margin-right: auto;
+}
+.attach-btn:hover { border-color: var(--accent); color: var(--accent-text); }
+
+
+/* 拖拽上传提示 */
+.composer.dragging { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }

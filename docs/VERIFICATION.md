@@ -53,6 +53,6 @@ SCIFORGE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -m integration -q
 ## 5. 已知限制
 
 - 真实 SSH/Slurm 未在真机验证（无服务器环境）；命令构造与解析由 116 个单测覆盖
-- 本机无 LaTeX、无 cairosvg/rsvg：论文编译与架构图 PDF 走优雅降级并给出安装提示
+- 本机无 LaTeX：论文编译走优雅降级并给出安装提示；架构图 PDF 已通过 macOS `sips` 兜底导出（Linux 建议装 librsvg/cairosvg）
 - LLM 质量决定产出质量；`--mock` 仅用于流程演示
 - 会议模板（CVPR/NeurIPS/ICLR/ACL）需自备官方 `.sty`；generic 模板零依赖可直接编译

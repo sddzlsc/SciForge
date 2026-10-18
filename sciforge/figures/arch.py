@@ -1599,11 +1599,11 @@ def build_svg(spec: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 _PNG_FALLBACKS = ("rsvg-convert", "sips", "qlmanage")
-_PDF_FALLBACKS = ("rsvg-convert", "inkscape")
+_PDF_FALLBACKS = ("rsvg-convert", "inkscape", "sips")
 _INSTALL_HINT = (
     "安装任一转换器即可：`pip install cairosvg`（推荐，纯 Python）、"
     "`brew install librsvg`（提供 rsvg-convert）或 `brew install --cask inkscape`。"
-    "macOS 下 PNG 还可以用系统自带的 sips/qlmanage 兜底。"
+    "macOS 下 PDF/PNG 还可以用系统自带的 sips/qlmanage 兜底。"
 )
 
 
@@ -1695,6 +1695,29 @@ def _png_via_sips(svg_path: Path, target: Path, dpi: int) -> bool:
         return False
 
 
+def _pdf_via_sips(svg_path: Path, target: Path) -> bool:
+    """macOS 自带 sips：SVG → PDF（LaTeX 可直接 \\includegraphics）。"""
+    binary = _find_binary("sips")
+    if not binary:
+        return False
+    try:
+        with tempfile.TemporaryDirectory(prefix="sciforge-fig-") as tmp:
+            tmp_pdf = Path(tmp) / "figure.pdf"
+            proc = subprocess.run(  # noqa: S603 - 本地已知命令
+                [binary, "-s", "format", "pdf", str(svg_path), "--out", str(tmp_pdf)],
+                capture_output=True,
+                timeout=120,
+                check=False,
+            )
+            if proc.returncode != 0 or not tmp_pdf.exists() or tmp_pdf.stat().st_size == 0:
+                return False
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(tmp_pdf, target)
+        return target.exists() and target.stat().st_size > 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _png_via_qlmanage(svg_path: Path, target: Path, dpi: int) -> bool:
     """macOS QuickLook 兜底：输出为正方形缩略图（保留留白）。"""
     binary = _find_binary("qlmanage")
@@ -1765,6 +1788,8 @@ def _convert_with_binary(svg_path: Path, target: Path, fmt: str, dpi: int) -> bo
                     return True
             except Exception:  # noqa: BLE001
                 pass
+        if _pdf_via_sips(svg_path, target):
+            return True
     return False
 
 

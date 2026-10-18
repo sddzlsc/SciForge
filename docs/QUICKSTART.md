@@ -88,5 +88,5 @@ sciforge serve        # http://127.0.0.1:8765
 | `缺少 API key` | `export DEEPSEEK_API_KEY=...`，或 `--mock` 离线 |
 | 文献检索 429 | Semantic Scholar 限流，配置 `S2_API_KEY` 或改用 arXiv/OpenAlex |
 | 训练启动后没日志 | `sciforge exp status` / `sciforge remote tail ...`；tmux 会话名见 run.json |
-| 图只有 SVG | `uv pip install cairosvg` 或 `brew install librsvg`，即可导出 PDF/PNG |
+| 图只有 SVG | macOS 默认用 `sips` 导出 PDF/PNG；Linux 可 `uv pip install cairosvg` 或 `brew install librsvg` |
 | 论文无法编译 | 安装 TeX Live；`sciforge write compile` 会给出缺失宏包提示 |

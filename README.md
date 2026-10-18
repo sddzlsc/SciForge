@@ -369,7 +369,7 @@ bash scripts/verify.sh      # 一键验证：导入 / pytest / demo / 工具 / L
 - 🚧 机构访问浏览器会话的完整自动化（当前优先 OA + instsci 集成）
 
 已知限制：LLM 质量决定产出质量；`--mock` 仅用于流程演示；远程功能需要用户自备 SSH 服务器；
-LaTeX 编译需要本机 TeX Live；配图 PNG/PDF 导出依赖 `cairosvg`/`rsvg-convert`（缺失时保底 SVG）。
+LaTeX 编译需要本机 TeX Live；架构图原生 SVG，PDF/PNG 依赖 `cairosvg`/`rsvg-convert`/`inkscape`，macOS 可用系统 `sips`/`qlmanage` 兜底（本机已验证可导出 PDF/PNG）。
 
 ## 致谢
 

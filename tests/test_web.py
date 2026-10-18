@@ -1160,3 +1160,47 @@ def test_pipeline_run_single_stage(client: TestClient) -> None:
         time.sleep(0.2)
     assert run["status"] in {"done", "partial"}
     assert [stage["name"] for stage in run["stages"]] == ["figures"]
+
+
+def test_dataset_upload_preserves_structure(client: TestClient, project: Path) -> None:
+    import json as _json
+
+    resp = client.post(
+        "/api/datasets/upload",
+        files=[
+            ("files", ("a.txt", b"train-a", "text/plain")),
+            ("files", ("b.txt", b"val-b", "text/plain")),
+        ],
+        data={
+            "name": "demo-dataset",
+            "paths": _json.dumps(["demo-dataset/train/a.txt", "demo-dataset/val/b.txt"]),
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["ok"] is True and data["files"] == 2
+    target = Path(data["path"])
+    assert target.is_absolute()
+    assert target == (project / "data" / "demo-dataset").resolve()
+    assert (target / "train" / "a.txt").read_text() == "train-a"
+    assert (target / "val" / "b.txt").read_text() == "val-b"
+    assert data["rel"] == "data/demo-dataset"
+
+
+def test_dataset_upload_rejects_parent_path(client: TestClient) -> None:
+    resp = client.post(
+        "/api/datasets/upload",
+        files=[("files", ("x.txt", b"x", "text/plain"))],
+        data={"name": "bad", "paths": '["bad/../../evil.txt"]'},
+    )
+    assert resp.status_code == 400
+
+
+def test_fs_list_returns_directories(client: TestClient, project: Path) -> None:
+    (project / "data" / "ds1").mkdir(parents=True, exist_ok=True)
+    (project / "data" / "plain.txt").write_text("x", encoding="utf-8")
+    data = client.get(f"/api/fs/list?path={project}").json()
+    assert data["ok"] is True
+    names = [item["name"] for item in data["dirs"]]
+    assert "data" in names
+    assert "plain.txt" not in names

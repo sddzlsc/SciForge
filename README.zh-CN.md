@@ -124,6 +124,8 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 
 ![对话顶部按 pipeline 顺序排列的阶段 + 单步控制](examples/demo/screenshots/gui-pipeline-in-chat.png)
 
+![流水线对话框：数据集路径支持上传 / 拖拽 / 选择本机目录](examples/demo/screenshots/gui-dataset-picker.png)
+
 ![GUI 文献：实时 arXiv 与 demo fixtures](examples/demo/screenshots/live-console-literature.png)
 
 ![GUI 实验：Pipeline 运行与历史](examples/demo/screenshots/live-console-experiments.png)
@@ -285,6 +287,7 @@ GUI「实验」页同样可以填「GPU 服务器 / 数据集路径」，并实�
 - 顶部阶段条实时显示每个阶段的状态（等待 / 执行中 / 完成 / 失败 / 下一步），点击可定位到阶段详情
 - 点击单个阶段可**只运行该阶段**（单阶段 run，同样可暂停/停止）
 - 「单步模式」下每个阶段开始前自动暂停，点顶部或卡片里的「▶ 下一步」执行下一阶段
+- **数据集路径支持上传**：📁 上传文件 / 拖拽文件或文件夹到输入框（保存到 `<项目>/data/`），或 🗂 选择本机已有目录（自动填绝对路径）；也接受远端已有路径
 **阶段卡片**：
 
 - 每个阶段显示状态、耗时、产物；**点阶段标题展开完整输出**（含中间结果与图表）

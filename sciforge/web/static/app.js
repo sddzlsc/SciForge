@@ -960,6 +960,204 @@
     }
   }
 
+  /* ---------------------------------- 数据集路径选择器 ---------------------------------- */
+  async function walkDroppedEntry(entry, prefix, out) {
+    if (!entry) return;
+    if (entry.isFile) {
+      try {
+        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        out.push({ file: file, rel: (prefix ? prefix + '/' : '') + file.name });
+      } catch (err) { /* 跳过不可读文件 */ }
+    } else if (entry.isDirectory) {
+      try {
+        const reader = entry.createReader();
+        let batch = [];
+        do {
+          batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+          for (const child of batch) {
+            await walkDroppedEntry(child, prefix + entry.name + '/', out);
+          }
+        } while (batch.length);
+      } catch (err) { /* 跳过不可读目录 */ }
+    }
+  }
+
+  async function uploadDatasetEntries(entries, input, hint, button) {
+    if (!entries.length) return;
+    const form = new FormData();
+    const paths = [];
+    entries.forEach((item) => {
+      form.append('files', item.file, item.file.name);
+      paths.push(item.rel || item.file.name);
+    });
+    form.append('paths', JSON.stringify(paths));
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = '上传中…';
+    hint.textContent = '正在上传 ' + entries.length + ' 个文件到项目 data/ …';
+    try {
+      const resp = await fetch('/api/datasets/upload', { method: 'POST', body: form });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok || !data || !data.ok) {
+        throw new Error((data && (data.detail || data.error)) || ('HTTP ' + resp.status));
+      }
+      input.value = data.path;
+      input.dataset.datasetPath = data.path;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      hint.textContent = '已上传 ' + data.files + ' 个文件 · ' + fmtBytes(data.size) + ' · 本地绝对路径已填入';
+      toast('数据集已保存到：' + data.path, 'ok', 7000);
+    } catch (err) {
+      hint.textContent = '数据集上传失败：' + err.message;
+      toast('数据集上传失败：' + err.message, 'err', 9000);
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+
+  async function openDatasetBrowser(input, hint) {
+    const overlay = el('div', 'dataset-browser-overlay');
+    const panel = el('div', 'dataset-browser-panel');
+    panel.innerHTML =
+      '<div class="dataset-browser-head"><strong>选择本地数据集目录</strong>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="ds-close">✕ 关闭</button></div>' +
+      '<div class="dataset-browser-body"><div class="muted">正在读取目录…</div></div>';
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const node = panel.querySelector('.dataset-browser-body');
+    const close = () => overlay.remove();
+    panel.querySelector('#ds-close').addEventListener('click', close);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close();
+    });
+    let current = null;
+    const render = (data) => {
+      current = data;
+      const roots = [
+        ['🏠 主目录', data.home],
+        ['📂 项目目录', data.project],
+      ].filter((item) => item[1]);
+      node.innerHTML =
+        '<div class="dataset-browser-path"><code>' + escapeHtml(data.path) + '</code></div>' +
+        '<div class="dataset-browser-actions">' +
+        (data.parent ? '<button type="button" class="btn btn-ghost btn-sm" data-ds-dir="' + escapeHtml(data.parent) + '">⬆ 上一级</button>' : '') +
+        roots.map((item) => '<button type="button" class="btn btn-ghost btn-sm" data-ds-dir="' + escapeHtml(item[1]) + '">' + item[0] + '</button>').join('') +
+        '<button type="button" class="btn btn-primary btn-sm" id="ds-choose">✅ 选择此目录</button>' +
+        '</div>' +
+        '<div class="files-list dataset-browser-list">' +
+        (data.dirs.length ? data.dirs.map((dir) =>
+          '<button type="button" class="file-row dataset-browser-row" data-ds-dir="' + escapeHtml(dir.path) + '">' +
+          '<span class="file-icon">📁</span><span class="file-name">' + escapeHtml(dir.name) + '</span></button>'
+        ).join('') : '<div class="muted" style="padding:10px">（没有子目录）</div>') +
+        '</div>' +
+        (data.truncated ? '<div class="muted">目录过多，仅显示前 500 个</div>' : '');
+      node.querySelectorAll('[data-ds-dir]').forEach((button) => {
+        button.addEventListener('click', () => navigate(button.dataset.dsDir));
+      });
+      const choose = node.querySelector('#ds-choose');
+      if (choose) {
+        choose.addEventListener('click', () => {
+          input.value = data.path;
+          input.dataset.datasetPath = data.path;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          hint.textContent = '已选择本地目录：' + data.path;
+          close();
+          toast('已填入数据集绝对路径', 'ok', 4000);
+        });
+      }
+    };
+    const navigate = async (path) => {
+      node.innerHTML = '<div class="muted">正在读取目录…</div>';
+      try {
+        const data = await api('/api/fs/list?path=' + encodeURIComponent(path));
+        if (data.ok) render(data);
+        else throw new Error(data.error || '读取失败');
+      } catch (err) {
+        node.innerHTML = noticeHtml('读取目录失败：' + err.message, 'err');
+      }
+    };
+    try {
+      const data = await api('/api/fs/list');
+      render(data);
+    } catch (err) {
+      node.innerHTML = noticeHtml('读取目录失败：' + err.message, 'err');
+    }
+  }
+
+  function initDatasetPicker(input) {
+    if (!input || input.dataset.pickerReady) return;
+    input.dataset.pickerReady = '1';
+    const label = input.closest('label') || input.parentElement;
+    label.classList.add('dataset-field');
+    const row = el('div', 'input-action dataset-input-row');
+    input.parentNode.insertBefore(row, input);
+    row.appendChild(input);
+    const uploadButton = el('button', 'btn btn-ghost btn-sm', '📁 上传');
+    uploadButton.type = 'button';
+    const browseButton = el('button', 'btn btn-ghost btn-sm', '🗂 本机');
+    browseButton.type = 'button';
+    row.appendChild(uploadButton);
+    row.appendChild(browseButton);
+    const fileInput = el('input');
+    fileInput.type = 'file';
+    fileInput.multiple = true;
+    fileInput.hidden = true;
+    const dirInput = el('input');
+    dirInput.type = 'file';
+    dirInput.multiple = true;
+    dirInput.hidden = true;
+    dirInput.setAttribute('webkitdirectory', '');
+    dirInput.setAttribute('directory', '');
+    const hint = el('span', 'dataset-hint muted', '拖拽文件/文件夹到此处上传到项目 data/；点「本机」可选择已有本地目录并填入绝对路径');
+    label.appendChild(fileInput);
+    label.appendChild(dirInput);
+    label.appendChild(hint);
+
+    uploadButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      fileInput.click();
+    });
+    browseButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      openDatasetBrowser(input, hint);
+    });
+    fileInput.addEventListener('change', async () => {
+      const entries = Array.from(fileInput.files || []).map((file) => ({
+        file: file, rel: file.webkitRelativePath || file.name,
+      }));
+      fileInput.value = '';
+      await uploadDatasetEntries(entries, input, hint, uploadButton);
+    });
+    dirInput.addEventListener('change', async () => {
+      const entries = Array.from(dirInput.files || []).map((file) => ({
+        file: file, rel: file.webkitRelativePath || file.name,
+      }));
+      dirInput.value = '';
+      await uploadDatasetEntries(entries, input, hint, uploadButton);
+    });
+    label.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      label.classList.add('dragging');
+    });
+    label.addEventListener('dragleave', () => label.classList.remove('dragging'));
+    label.addEventListener('drop', async (event) => {
+      event.preventDefault();
+      label.classList.remove('dragging');
+      const entries = [];
+      const items = event.dataTransfer && event.dataTransfer.items;
+      if (items && items.length) {
+        for (const item of Array.from(items)) {
+          const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+          if (entry) await walkDroppedEntry(entry, '', entries);
+        }
+      }
+      if (!entries.length && event.dataTransfer && event.dataTransfer.files) {
+        Array.from(event.dataTransfer.files).forEach((file) => entries.push({ file: file, rel: file.name }));
+      }
+      if (entries.length) await uploadDatasetEntries(entries, input, hint, uploadButton);
+    });
+  }
+
   /* ---------------------------------- 对话内科研流水线 ---------------------------------- */
   const PIPELINE_TERMINAL = new Set(['done', 'failed', 'stopped', 'partial']);
   const PIPELINE_STATUS_TEXT = {
@@ -1026,13 +1224,15 @@
         (singleStage ? '' : '<label class="field"><span>Recipe</span><select id="pipe-chat-recipe">' + recipeOptions + '</select></label>') +
         '<label class="field grow"><span>研究主题</span><input id="pipe-chat-topic" value="' + escapeHtml(topic) + '" placeholder="描述你的课题，例如：扩散 Transformer 的高效注意力机制" required></label>' +
         '<label class="field"><span>GPU 服务器</span><select id="pipe-chat-server">' + serverOptions + '</select></label>' +
-        '<label class="field"><span>数据集路径（可选）</span><input id="pipe-chat-dataset" placeholder="./data 或远端路径"></label>' +
+        '<label class="field grow"><span>数据集路径（可选）</span><input id="pipe-chat-dataset" placeholder="上传 / 拖拽 / 选择本机目录，或填绝对路径"></label>' +
         '<label class="switch field-switch"><input type="checkbox" id="pipe-chat-mock"' + ($('#mock-toggle').checked ? ' checked' : '') + '><span class="switch-track"></span><span class="switch-text">Mock</span></label>' +
         stepToggle +
         '</div>' +
         '<div class="form-actions"><button class="btn btn-primary" type="submit">' + (singleStage ? '运行此阶段' : '运行流水线') + '</button>' +
         '<button class="btn btn-ghost" type="button" id="pipe-chat-cancel">取消</button></div>' +
         '</form>';
+      const datasetInput = node.querySelector('#pipe-chat-dataset');
+      if (datasetInput) initDatasetPicker(datasetInput);
       const form = node.querySelector('form');
       node.querySelector('#pipe-chat-cancel').addEventListener('click', closeModal);
       form.addEventListener('submit', async (event) => {
@@ -2431,6 +2631,7 @@
   }
 
   function bindExperiments() {
+    initDatasetPicker($('#pipe-dataset'));
     $('#pipe-form').addEventListener('submit', startPipeline);
     $('#runs-refresh').addEventListener('click', loadRuns);
     $('#runs-body').addEventListener('click', async (event) => {

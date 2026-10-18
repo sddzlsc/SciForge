@@ -62,6 +62,9 @@ GPU_PROBE_TIMEOUT = float(os.environ.get("SCIFORGE_WEB_GPU_TIMEOUT", "15"))
 #: 文件上传
 UPLOAD_DIRNAME = "uploads"
 MAX_UPLOAD_BYTES = 64 * 1024 * 1024
+DATASET_DIRNAME = "data"
+MAX_DATASET_BYTES = 4 * 1024 * 1024 * 1024  # 4GB / 数据集上传
+MAX_DATASET_FILES = 20000
 MAX_ATTACHMENT_CONTEXT = 30000
 _TEXT_EXTS = {".txt", ".md", ".markdown", ".json", ".jsonl", ".csv", ".tsv", ".yaml", ".yml", ".py", ".tex", ".bib", ".log", ".html", ".htm", ".ipynb"}
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".bmp"}
@@ -474,6 +477,27 @@ def _safe_upload_name(filename: str) -> str:
     name = Path(str(filename or "file")).name
     name = re.sub(r"[^\w.\-\u4e00-\u9fff]+", "_", name).strip("._")
     return (name[:120] or "file")
+
+
+def _clean_dataset_parts(value: str) -> list[str]:
+    """把上传的相对路径拆成安全片段；拒绝 .. / 绝对路径。"""
+    raw = str(value or "").replace("\\", "/").strip()
+    if not raw or raw.startswith("/"):
+        raise HTTPException(status_code=400, detail=f"非法数据集相对路径：{value}")
+    parts: list[str] = []
+    for part in raw.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            raise HTTPException(status_code=400, detail=f"非法数据集相对路径：{value}")
+        parts.append(_safe_upload_name(part))
+    if not parts:
+        raise HTTPException(status_code=400, detail="数据集路径为空")
+    return parts
+
+
+def _dataset_abs_path(project_dir: Path, target: Path) -> str:
+    return str(target.resolve())
 
 
 def _upload_kind(path: Path) -> str:
@@ -1747,6 +1771,132 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "files": saved,
             "upload_dir": str(project_dir / UPLOAD_DIRNAME),
             "max_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
+        }
+
+    @app.post("/api/datasets/upload")
+    async def api_dataset_upload(
+        files: list[UploadFile] = File(...),
+        name: str = Form(""),
+        paths: str = Form(""),
+        replace: bool = Form(False),
+    ) -> dict[str, Any]:
+        """上传数据集到 <project>/data/<name>/，保留文件夹结构并返回本地绝对路径。"""
+        if not files:
+            raise HTTPException(status_code=400, detail="没有收到数据文件")
+        if len(files) > MAX_DATASET_FILES:
+            raise HTTPException(status_code=413, detail=f"文件数过多（上限 {MAX_DATASET_FILES}）")
+        try:
+            rel_paths = json.loads(paths) if paths else []
+        except json.JSONDecodeError:
+            rel_paths = []
+        if not isinstance(rel_paths, list):
+            rel_paths = []
+
+        data_root = project_dir / DATASET_DIRNAME
+        data_root.mkdir(parents=True, exist_ok=True)
+        req_name = _safe_upload_name(name) if str(name or "").strip() else ""
+        first_rel = str(rel_paths[0]) if rel_paths else (files[0].filename or "dataset")
+        first_parts = [part for part in str(first_rel).replace("\\", "/").split("/") if part]
+        if not req_name:
+            if len(first_parts) > 1:
+                req_name = _safe_upload_name(first_parts[0])
+            else:
+                req_name = _safe_upload_name(Path(first_parts[0] if first_parts else "dataset").stem)
+        req_name = req_name or f"dataset-{time.strftime('%Y%m%d-%H%M%S')}"
+        target = data_root / req_name
+        if target.exists() and not replace:
+            index = 2
+            while (data_root / f"{req_name}-{index}").exists():
+                index += 1
+            target = data_root / f"{req_name}-{index}"
+        target.mkdir(parents=True, exist_ok=True)
+        target_resolved = target.resolve()
+        total = 0
+        written = 0
+        top_entries: set[str] = set()
+        try:
+            for index, upload in enumerate(files):
+                rel = str(rel_paths[index]) if index < len(rel_paths) else (upload.filename or f"file-{index}")
+                parts = _clean_dataset_parts(rel)
+                # 文件夹上传时 rel 形如 mydata/train/a.jpg，target 已是 data/mydata，去掉重复顶层
+                if len(parts) > 1 and parts[0] == target.name:
+                    parts = parts[1:]
+                if not parts:
+                    parts = [f"file-{index}"]
+                dest = (target / Path(*parts)).resolve()
+                try:
+                    dest.relative_to(target_resolved)
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"非法数据集路径：{rel}") from None
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                with dest.open("wb") as handle:
+                    while True:
+                        chunk = await upload.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        total += len(chunk)
+                        if total > MAX_DATASET_BYTES:
+                            raise HTTPException(status_code=413, detail="数据集过大（上限 4GB）")
+                        handle.write(chunk)
+                top_entries.add(parts[0])
+                written += 1
+        except HTTPException:
+            shutil.rmtree(target, ignore_errors=True)
+            raise
+        except Exception as exc:  # noqa: BLE001
+            shutil.rmtree(target, ignore_errors=True)
+            raise HTTPException(status_code=400, detail=f"保存数据集失败：{type(exc).__name__}: {exc}") from exc
+
+        return {
+            "ok": True,
+            "name": target.name,
+            "path": _dataset_abs_path(project_dir, target),
+            "rel": target.relative_to(project_dir).as_posix(),
+            "files": written,
+            "size": total,
+            "entries": sorted(top_entries)[:50],
+            "max_bytes": MAX_DATASET_BYTES,
+        }
+
+    @app.get("/api/fs/list")
+    def api_fs_list(path: str = "", show_hidden: bool = False) -> dict[str, Any]:
+        """列出本机目录（只返回目录名，供本地数据集路径选择器使用）。"""
+        raw = str(path or "").strip()
+        target = Path(raw).expanduser() if raw else Path.home()
+        if not target.is_absolute():
+            raise HTTPException(status_code=400, detail="请提供绝对路径")
+        try:
+            target = target.resolve()
+        except OSError as exc:
+            raise HTTPException(status_code=400, detail=f"路径不可用：{exc}") from exc
+        if not target.is_dir():
+            raise HTTPException(status_code=404, detail=f"目录不存在：{target}")
+        dirs: list[dict[str, str]] = []
+        try:
+            for entry in sorted(target.iterdir(), key=lambda item: item.name.lower()):
+                if not show_hidden and entry.name.startswith("."):
+                    continue
+                try:
+                    if entry.is_dir():
+                        dirs.append({"name": entry.name, "path": str(entry.resolve())})
+                except OSError:
+                    continue
+                if len(dirs) >= 500:
+                    break
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=f"没有权限读取：{target}") from exc
+        except OSError as exc:
+            raise HTTPException(status_code=400, detail=f"读取目录失败：{exc}") from exc
+        parent = str(target.parent) if target.parent != target else ""
+        return {
+            "ok": True,
+            "path": str(target),
+            "parent": parent,
+            "home": str(Path.home()),
+            "project": str(project_dir),
+            "cwd": str(Path.cwd()),
+            "dirs": dirs,
+            "truncated": len(dirs) >= 500,
         }
 
     @app.post("/api/servers/{name}/upload")

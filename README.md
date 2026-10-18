@@ -61,6 +61,8 @@ Literature → Deep-read → Idea mining → Experiments on GPU → Analysis →
 
 ![Pipeline stages in order at the top of the chat, with step-by-step control](examples/demo/screenshots/gui-pipeline-in-chat.png)
 
+![Pipeline dialog: dataset upload, drag-and-drop, local directory picker](examples/demo/screenshots/gui-dataset-picker.png)
+
 ## Quickstart
 
 ### 1. Install (Python ≥ 3.10)
@@ -207,6 +209,8 @@ pipeline** to configure and start:
 - the top stage bar shows each stage's live state (pending / running / done / failed / next); click to jump to details
 - click a single stage to run **just that stage** as its own run (also pausable/stoppable)
 - with **step mode**, the pipeline pauses before every stage; click **▶ Next step** to advance
+- the **dataset path** field supports 📁 upload, drag-and-drop of files/folders (saved to `<project>/data/`),
+  or 🗂 picking an existing local directory (auto-fills the absolute path); remote paths are also accepted
 - the run appears as a message in the conversation:
 
 - stage-by-stage status, duration and artifacts; **click a stage to expand its full output**

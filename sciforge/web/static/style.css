@@ -1355,3 +1355,50 @@ details.panel #lit-config-notice, details.panel #lit-sources { margin-top: 12px;
 .pipeline-nav-actions .btn { font-size: 11.5px; padding: 5px 9px; }
 .quick-chips-row { opacity: .9; }
 .quick-chips-row .chip { font-size: 11.5px; }
+
+
+/* 数据集路径：上传 / 拖拽 / 本地目录选择 */
+.dataset-field { grid-column: span 2; }
+.dataset-input-row { display: flex; align-items: center; gap: 6px; }
+.dataset-input-row input { flex: 1; min-width: 0; }
+.dataset-field.dragging { outline: 2px dashed var(--accent); outline-offset: 3px; border-radius: var(--radius-xs); }
+.dataset-hint { display: block; margin-top: 4px; font-size: 10.5px; line-height: 1.5; color: var(--muted-2); }
+.dataset-browser-path code { display: block; padding: 6px 9px; border-radius: var(--radius-xs); background: var(--panel-3); border: 1px solid var(--border); word-break: break-all; font-size: 11.5px; }
+.dataset-browser-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.dataset-browser-list { max-height: 380px; overflow: auto; border: 1px solid var(--border-soft); border-radius: var(--radius-xs); }
+.dataset-browser-row { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 9px; background: none; border: none; border-bottom: 1px solid var(--border-soft); color: var(--text); text-align: left; cursor: pointer; font: inherit; font-size: 12px; }
+.dataset-browser-row:hover { background: var(--panel-3); }
+.dataset-browser-row .file-icon { font-size: 13px; }
+
+
+/* 数据集目录选择：独立浮层，避免覆盖流水线对话框 */
+.dataset-browser-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  background: rgba(2, 6, 15, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.dataset-browser-panel {
+  width: min(760px, 94vw);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.dataset-browser-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.dataset-browser-body { padding: 12px 16px 16px; overflow: auto; }

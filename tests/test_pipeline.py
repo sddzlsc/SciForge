@@ -142,3 +142,43 @@ def test_pipeline_runner_control_methods(sciforge_home: Path, project: Path) -> 
     assert runner.control.paused is False
     runner.stop()
     assert runner.control.stopped is True
+
+
+def test_pipeline_pause_between_stages(sciforge_home: Path, project: Path, monkeypatch) -> None:
+    import threading
+    import time as _time
+
+    from sciforge.pipeline.engine import PipelineRunner
+
+    runner = PipelineRunner(get_settings(project), project, mock=True)
+    original = runner._run_stage
+
+    def slow_stage(*args, **kwargs):  # noqa: ANN002, ANN003
+        _time.sleep(0.12)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "_run_stage", slow_stage)
+    events: list = []
+    runner.bus.subscribe(lambda event: events.append(event))
+    box: dict = {}
+    thread = threading.Thread(target=lambda: box.setdefault("run", runner.run("paper", "pause test")))
+    thread.start()
+
+    deadline = _time.time() + 8
+    while _time.time() < deadline:
+        if any(
+            event.kind == "stage" and getattr(event, "payload", {}).get("phase") == "end"
+            for event in list(events)
+        ):
+            break
+        _time.sleep(0.02)
+
+    runner.pause()
+    _time.sleep(0.25)
+    assert runner.control.paused is True
+    assert thread.is_alive(), "暂停后流水线不应继续跑完"
+
+    runner.resume()
+    thread.join(timeout=15)
+    assert not thread.is_alive()
+    assert box["run"].status == "done"

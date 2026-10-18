@@ -155,6 +155,23 @@
     return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{1,}:?\s*)+\|?\s*$/.test(String(line));
   }
 
+  function renderTex(tex, display) {
+    const source = String(tex || '').trim();
+    if (!source) return '';
+    if (window.katex && typeof window.katex.renderToString === 'function') {
+      try {
+        return window.katex.renderToString(source, {
+          displayMode: Boolean(display),
+          throwOnError: false,
+          strict: 'ignore',
+          trust: false,
+        });
+      } catch (err) { /* fall through to TeX source */ }
+    }
+    // KaTeX 未加载或渲染失败：显示可读的 LaTeX 源码，而不是乱码
+    return '<code class="math-tex" title="公式渲染不可用，以下为 LaTeX 源码">' + escapeHtml(source) + '</code>';
+  }
+
   function renderMarkdown(text) {
     if (!text) return '';
     let src = String(text).replace(/\r\n/g, '\n');
@@ -163,6 +180,25 @@
       codeBlocks.push('<pre><code data-lang="' + escapeHtml(lang || '') + '">' + escapeHtml(code.replace(/\n$/, '')) + '</code></pre>');
       return '\u0000BLOCK' + (codeBlocks.length - 1) + '\u0000';
     });
+
+    // 行内代码先占位，避免其中的 $...$ 被误判成公式
+    const inlineCodes = [];
+    src = src.replace(/`([^`\n]+)`/g, (match, code) => {
+      inlineCodes.push('<code>' + escapeHtml(code) + '</code>');
+      return '@@ICODE' + (inlineCodes.length - 1) + '@@';
+    });
+
+    // 公式保护：$$...$$ / \[...\] / \(...\) / $...$；先保护再走 Markdown
+    const mathBlocks = [];
+    function stashMath(tex, display) {
+      const token = (display ? '@@DMATH' : '@@IMATH') + mathBlocks.length + '@@';
+      mathBlocks.push({ tex: String(tex || ''), display: Boolean(display) });
+      return token;
+    }
+    src = src.replace(/\$\$([\s\S]+?)\$\$/g, (match, tex) => stashMath(tex, true));
+    src = src.replace(/\\\[([\s\S]+?)\\\]/g, (match, tex) => stashMath(tex, true));
+    src = src.replace(/\\\(([\s\S]+?)\\\)/g, (match, tex) => stashMath(tex, false));
+    src = src.replace(/\$(\S(?:[^\n$]*?\S)?)\$/g, (match, tex) => stashMath(tex, false));
 
     const lines = src.split('\n');
     const out = [];
@@ -251,7 +287,26 @@
       }
       out.push('<p>' + inlineMd(paragraph.join(' ')) + '</p>');
     }
-    return out.join('\n');
+
+    let html = out.join('\n');
+    // 行内代码
+    html = html.replace(/@@ICODE(\d+)@@/g, (match, idx) => inlineCodes[Number(idx)] || '');
+    // 独立成段的 display 公式 → 块级渲染
+    html = html.replace(/<p>\s*@@DMATH(\d+)@@\s*<\/p>/g, (match, idx) => {
+      const block = mathBlocks[Number(idx)];
+      return '<div class="math-block">' + renderTex(block.tex, true) + '</div>';
+    });
+    // 其余 display 公式（与文字同段）→ inline 显示
+    html = html.replace(/@@DMATH(\d+)@@/g, (match, idx) => {
+      const block = mathBlocks[Number(idx)];
+      return '<span class="math-display-inline">' + renderTex(block.tex, true) + '</span>';
+    });
+    // inline 公式
+    html = html.replace(/@@IMATH(\d+)@@/g, (match, idx) => {
+      const block = mathBlocks[Number(idx)];
+      return renderTex(block.tex, false);
+    });
+    return html;
   }
 
   /* ---------------------------------- 主题 ---------------------------------- */
@@ -1725,6 +1780,8 @@
       const data = await apiPost('/api/pipeline/run', {
         recipe: $('#pipe-recipe').value,
         topic: topic,
+        server: $('#pipe-server').value.trim() || null,
+        dataset: $('#pipe-dataset').value.trim() || null,
         mock: $('#pipe-mock').checked,
       });
       if (!data.ok || data.available === false) {
@@ -1801,7 +1858,6 @@
     await loadRecipes();
     await loadRuns();
     await loadMetricsServers();
-    fetchMetrics();
   }
 
   /* ---------------------------------- GPU 实时指标 ---------------------------------- */

@@ -146,7 +146,7 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 | ✍️ 写作 | LaTeX 工程（CVPR/NeurIPS/ICLR/ACL/通用）、章节生成、引用管理、编译检查、审稿自检 | `sciforge write ...`、`paper_*` |
 | 🎨 配图 | 顶会风格模型架构图（声明式 DSL → SVG/PDF）、实验曲线、三线表 | `sciforge fig ...`、`figure_architecture` |
 | 🧩 编排 | Recipe 流水线 + 科研状态文件 + 可中断/续跑 | `sciforge pipeline ...` |
-| 🖥️ 控制台 | 本地 Web：对话流式、文献、GPU、实验、图表、技能 | `sciforge serve` |
+| 🖥️ 控制台 | 本地 Web：对话流式（Markdown + KaTeX 公式）、文献、GPU、实验、图表、技能 | `sciforge serve` |
 | 🤝 DSH | 技能安装到 DSH，由 DSH 调度本 Harness | `sciforge dsh install` |
 
 ## 快速开始
@@ -258,6 +258,23 @@ sciforge pipeline run --recipe full     --topic "..."   # 全流程（可 --unti
 sciforge pipeline runs                 # 历史运行
 sciforge pipeline show <run-id>        # 查看报告
 ```
+
+`full` 现在按真实科研顺序执行 **13 个阶段**：
+
+```text
+① 课题定义与边界 → ② 自动文献调研 → ③ 代表论文精读 → ④ 创新点挖掘
+→ ⑤ GPU 连接与资源确认 → ⑥ 数据集准备与上传
+→ ⑦ 实验设计 → ⑧ 代码实现 → ⑨ 远程训练/实验 → ⑩ 结果分析
+→ ⑪ 顶会级配图 → ⑫ 论文写作 → ⑬ 审稿式自检
+```
+
+可选输入（留空则自动探测/自动选择）：
+
+```bash
+sciforge pipeline run --recipe full --topic "..." --server gpu1 --dataset ./data
+```
+
+GUI「实验」页同样可以填「GPU 服务器 / 数据集路径」，并实时查看每个阶段的状态与产物。
 
 每个 run 产出：
 

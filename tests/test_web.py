@@ -1067,3 +1067,16 @@ def test_chat_accepts_unlimited_max_steps(client: TestClient) -> None:
 
     bad = client.post("/api/chat", json={"message": "x", "mock": True, "max_steps": -1})
     assert bad.status_code == 422
+
+
+def test_katex_assets_and_math_hooks(client: TestClient) -> None:
+    root = Path(__file__).resolve().parents[1]
+    static = root / "sciforge" / "web" / "static"
+    assert (static / "vendor" / "katex" / "katex.min.js").is_file()
+    assert (static / "vendor" / "katex" / "katex.min.css").is_file()
+    assert list((static / "vendor" / "katex" / "fonts").glob("*.woff2"))
+    html = client.get("/").text
+    assert "/static/vendor/katex/katex.min.js" in html
+    js = (static / "app.js").read_text(encoding="utf-8")
+    assert "function renderTex" in js
+    assert "math-block" in js

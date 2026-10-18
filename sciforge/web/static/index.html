@@ -7,6 +7,8 @@
   <title>SciForge · 本地科研智能体控制台</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/vendor/katex/katex.min.css">
+  <script defer src="/static/vendor/katex/katex.min.js"></script>
 </head>
 <body>
   <div class="bg-orbit" aria-hidden="true"></div>
@@ -381,6 +383,14 @@
               <label class="field grow">
                 <span>研究主题</span>
                 <input id="pipe-topic" type="text" placeholder="例如：扩散 Transformer 在视频生成中的高效注意力机制">
+              </label>
+              <label class="field">
+                <span>GPU 服务器（可选）</span>
+                <input id="pipe-server" type="text" placeholder="gpu1；留空自动选择" spellcheck="false">
+              </label>
+              <label class="field">
+                <span>数据集路径（可选）</span>
+                <input id="pipe-dataset" type="text" placeholder="./data 或远端已有路径" spellcheck="false">
               </label>
               <label class="switch field-switch">
                 <input type="checkbox" id="pipe-mock" checked>

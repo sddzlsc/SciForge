@@ -51,6 +51,29 @@ def test_pipeline_manifest_and_history(sciforge_home: Path, project: Path) -> No
     assert loaded["stages"][0]["name"] == "survey"
 
 
+def test_full_recipe_order_matches_research_flow() -> None:
+    recipe = get_recipe("full")
+    assert recipe is not None
+    assert [stage.name for stage in recipe.stages] == [
+        "scope",
+        "survey",
+        "read",
+        "ideate",
+        "gpu",
+        "data",
+        "design",
+        "code",
+        "run",
+        "analyze",
+        "figures",
+        "write",
+        "review",
+    ]
+    prompts = Path("sciforge/prompts/stages")
+    for stage in recipe.stages:
+        assert (prompts / f"{stage.prompt}_zh.md").is_file(), f"缺少阶段 prompt：{stage.prompt}"
+
+
 def test_unknown_recipe_raises(sciforge_home: Path, project: Path) -> None:
     settings = get_settings(project)
     with pytest.raises(ValueError):
@@ -74,3 +97,17 @@ def test_research_state_files(sciforge_home: Path, project: Path) -> None:
     assert state["next_actions"]
     assert "状态文件测试" in findings.read_text(encoding="utf-8")
     assert run.run_id in log.read_text(encoding="utf-8")
+
+
+def test_pipeline_records_server_and_dataset(sciforge_home: Path, project: Path) -> None:
+    from sciforge.pipeline.engine import PipelineRunner
+
+    settings = get_settings(project)
+    runner = PipelineRunner(settings, project, mock=True)
+    run = runner.run("figure", "测试主题", server="gpu1", dataset="./data")
+    assert run.server == "gpu1"
+    assert run.dataset == "./data"
+    data = run.to_dict()
+    assert data["server"] == "gpu1" and data["dataset"] == "./data"
+    manifest = (run.run_dir / "run.json").read_text(encoding="utf-8")
+    assert "gpu1" in manifest and "./data" in manifest

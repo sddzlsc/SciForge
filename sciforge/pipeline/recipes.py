@@ -59,6 +59,9 @@ WRITE_TOOLS = [
 ]
 FIGURE_TOOLS = ["figure_architecture", "figure_plot", "figure_table", "write_file", "read_file"]
 REVIEW_TOOLS = ["paper_review", "read_file", "write_file", "skill_load"]
+SCOPE_TOOLS = ["read_file", "write_file", "project_tree", "skill_load"]
+GPU_TOOLS = ["gpu_status", "remote_run", "read_file", "write_file"]
+DATA_TOOLS = ["remote_sync", "remote_run", "read_file", "write_file", "list_dir", "shell"]
 
 
 def _stage(
@@ -85,12 +88,21 @@ def _stage(
 FULL_RECIPE = Recipe(
     name="full",
     title="全流程科研流水线",
-    description="文献调研 → 精读 → 创新点 → 实验设计 → 代码 → 远程训练 → 分析 → 论文 → 配图 → 自检",
+    description="课题定义 → 文献调研 → 精读 → 创新点 → GPU 连接 → 数据集上传 → 实验设计/代码/运行/分析 → 配图 → 论文 → 自检",
     tags=("research", "end-to-end"),
     stages=[
         _stage(
+            "scope",
+            "① 课题定义与边界",
+            "scope",
+            SCOPE_TOOLS,
+            role="planner",
+            max_steps=8,
+            artifacts=["research-brief.md"],
+        ),
+        _stage(
             "survey",
-            "① 文献调研",
+            "② 自动文献调研",
             "survey",
             LIT_TOOLS,
             role="planner",
@@ -99,7 +111,7 @@ FULL_RECIPE = Recipe(
         ),
         _stage(
             "read",
-            "② 代表论文精读",
+            "③ 代表论文精读",
             "read",
             READ_TOOLS,
             role="planner",
@@ -108,30 +120,39 @@ FULL_RECIPE = Recipe(
         ),
         _stage(
             "ideate",
-            "③ 创新点挖掘",
+            "④ 创新点挖掘",
             "ideate",
             IDEA_TOOLS,
             role="planner",
             max_steps=14,
             artifacts=["ideas.md"],
         ),
-        _stage("design", "④ 实验设计", "design", DESIGN_TOOLS, max_steps=12, artifacts=["experiment-plan.md"]),
-        _stage("code", "⑤ 代码实现", "code", CODE_TOOLS, max_steps=18, artifacts=["code-plan.md"]),
-        _stage("run", "⑥ 远程训练/实验", "run", RUN_TOOLS, max_steps=14, artifacts=["run-log.md"]),
-        _stage("analyze", "⑦ 结果分析", "analyze", ANALYZE_TOOLS, max_steps=14, artifacts=["analysis.md"]),
+        _stage("gpu", "⑤ GPU 连接与资源确认", "gpu", GPU_TOOLS, max_steps=8, artifacts=["gpu-check.md"]),
+        _stage(
+            "data",
+            "⑥ 数据集准备与上传",
+            "data",
+            DATA_TOOLS,
+            max_steps=10,
+            artifacts=["data-manifest.md"],
+        ),
+        _stage("design", "⑦ 实验设计", "design", DESIGN_TOOLS, max_steps=12, artifacts=["experiment-plan.md"]),
+        _stage("code", "⑧ 代码实现", "code", CODE_TOOLS, max_steps=18, artifacts=["code-plan.md"]),
+        _stage("run", "⑨ 远程训练/实验", "run", RUN_TOOLS, max_steps=14, artifacts=["run-log.md"]),
+        _stage("analyze", "⑩ 结果分析", "analyze", ANALYZE_TOOLS, max_steps=14, artifacts=["analysis.md"]),
+        _stage("figures", "⑪ 顶会级配图", "figures", FIGURE_TOOLS, max_steps=14, artifacts=["figures.md"]),
         _stage(
             "write",
-            "⑧ 论文写作",
+            "⑫ 论文写作",
             "write",
             WRITE_TOOLS,
             role="writer",
             max_steps=18,
             artifacts=["paper-draft.md"],
         ),
-        _stage("figures", "⑨ 顶会级配图", "figures", FIGURE_TOOLS, max_steps=14, artifacts=["figures.md"]),
         _stage(
             "review",
-            "⑩ 审稿式自检",
+            "⑬ 审稿式自检",
             "review",
             REVIEW_TOOLS,
             role="reviewer",

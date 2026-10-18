@@ -138,6 +138,8 @@ class PipelineRunner:
             context=self._collect_context(run, stage),
             project=self._project_snapshot(),
             title=stage.title,
+            server=run.server or "（未指定，自动选择）",
+            dataset=run.dataset or "（未指定，自动探测项目 data/ 目录）",
         )
 
         def emit(kind: str, payload: dict[str, Any]) -> None:
@@ -238,6 +240,8 @@ class PipelineRunner:
         until: str | None = None,
         run_id: str | None = None,
         skip_stages: list[str] | None = None,
+        server: str | None = None,
+        dataset: str | None = None,
     ) -> PipelineRun:
         recipe_obj = get_recipe(recipe) if isinstance(recipe, str) else recipe
         if recipe_obj is None:
@@ -251,8 +255,15 @@ class PipelineRunner:
             recipe=recipe_obj.name,
             topic=topic,
             run_dir=run_dir,
+            server=(server or "").strip() or None,
+            dataset=(dataset or "").strip() or None,
         )
-        (run_dir / "topic.md").write_text(f"# 研究主题\n\n{topic}\n", encoding="utf-8")
+        inputs = f"# 研究主题\n\n{topic}\n"
+        if run.server:
+            inputs += f"\n- 指定服务器：`{run.server}`\n"
+        if run.dataset:
+            inputs += f"- 指定数据集：`{run.dataset}`\n"
+        (run_dir / "topic.md").write_text(inputs, encoding="utf-8")
         self._write_manifest(run)
         self._emit(
             "stage",

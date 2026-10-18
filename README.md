@@ -42,7 +42,7 @@ Literature → Deep-read → Idea mining → Experiments on GPU → Analysis →
 | ✍️ Writing | LaTeX projects (CVPR/NeurIPS/ICLR/ACL/generic), citations, compile checks, reviewer-style self-check | `sciforge write ...` |
 | 🎨 Figures | Conference-style architecture diagrams (declarative DSL → SVG/PDF), plots, booktabs tables | `sciforge fig ...` |
 | 🧩 Orchestration | Recipe pipelines with resumable stage artifacts | `sciforge pipeline ...` |
-| 🖥️ Web console | Local GUI: streaming chat, literature, GPU, experiments, figures, skills, models | `sciforge serve` |
+| 🖥️ Web console | Local GUI: streaming chat (Markdown + offline KaTeX math), literature, GPU, experiments, figures, skills, models | `sciforge serve` |
 | 🤝 DSH | Install skills into DSH (DeepSeek Harness) and drive SciForge from the host agent | `sciforge dsh install` |
 
 ## Screenshots
@@ -177,6 +177,24 @@ sciforge pipeline run --recipe full       --topic "..."   # --until to stop earl
 sciforge pipeline runs
 sciforge pipeline show <run-id>
 ```
+
+The `full` recipe now follows the real research loop in **13 stages**:
+
+```text
+scope → literature survey → deep-read → idea mining
+→ GPU connectivity check → dataset upload
+→ experiment design → code → remote run → analysis
+→ publication figures → paper writing → reviewer self-check
+```
+
+Optional inputs (empty = auto-detect / auto-select):
+
+```bash
+sciforge pipeline run --recipe full --topic "..." --server gpu1 --dataset ./data
+```
+
+The GUI experiment page exposes the same `GPU server` / `dataset path` fields and shows live
+per-stage status and artifacts.
 
 Each run writes resumable artifacts:
 

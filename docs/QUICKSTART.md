@@ -36,12 +36,12 @@ sciforge doctor
 
 ```bash
 sciforge chat "调研 diffusion transformer 在视频生成中的进展，总结 5 篇代表工作，并给出 3 个可做的方向"
+```
 
 > **步数上限**：每次任务默认最多 30 个 Agent 步（1 步 = 1 次 LLM 调用 + 工具执行）。
 > 用 `--max-steps N` 调整，`0` 表示无上限（谨慎）；GUI 对话工具栏的「步数」框、
 > `[agent] max_steps` 配置和 `/api/chat` 的 `max_steps` 字段同样生效。
 > 不管上限多少，模型不再调用工具、LLM 报错、或手动停止时都会结束。
-```
 
 Agent 会调用文献工具检索、写入 `notes/`、给出带评分的 Idea Card。
 
@@ -50,6 +50,19 @@ Agent 会调用文献工具检索、写入 `notes/`、给出带评分的 Idea Ca
 ```bash
 sciforge pipeline run --recipe survey --topic "视频生成中的时空一致性"
 sciforge pipeline show <run-id>
+```
+
+### 完整 `full` 流程
+
+```text
+课题定义 → 文献调研 → 精读 → 创新点 → GPU 连接 → 数据集上传
+→ 实验设计 → 代码 → 远程训练 → 结果分析 → 配图 → 论文 → 自检
+```
+
+可选指定服务器/数据集（留空自动选择/自动探测）：
+
+```bash
+sciforge pipeline run --recipe full --topic "..." --server gpu1 --dataset ./data
 ```
 
 ## 5. 配置 GPU 服务器（可选）

@@ -59,6 +59,8 @@ class PipelineRun:
     recipe: str
     topic: str
     run_dir: Path
+    server: str | None = None
+    dataset: str | None = None
     status: str = "running"
     stages: list[StageResult] = field(default_factory=list)
     started_at: float = field(default_factory=time.time)
@@ -75,6 +77,8 @@ class PipelineRun:
             "recipe": self.recipe,
             "topic": self.topic,
             "run_dir": str(self.run_dir),
+            "server": self.server,
+            "dataset": self.dataset,
             "status": self.status,
             "started_at": self.started_at,
             "finished_at": self.finished_at,

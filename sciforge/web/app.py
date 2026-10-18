@@ -106,6 +106,8 @@ class PipelineRunRequest(BaseModel):
     topic: str = ""
     mock: bool | None = None
     until: str | None = None
+    server: str | None = None
+    dataset: str | None = None
 
 
 class SkillInstallRequest(BaseModel):
@@ -2029,6 +2031,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "pipeline_run_id": None,
             "recipe": recipe,
             "topic": topic,
+            "server": (req.server or "").strip() or None,
+            "dataset": (req.dataset or "").strip() or None,
             "mock": mock,
             "status": "running",
             "started_at": _now_iso(),
@@ -2058,7 +2062,9 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                 from sciforge.pipeline.engine import PipelineRunner
 
                 runner = PipelineRunner(settings, project_dir, mock=mock, bus=bus)
-                run = runner.run(recipe, topic, until=req.until)
+                run = runner.run(
+                    recipe, topic, until=req.until, server=req.server, dataset=req.dataset
+                )
                 data = _jsonable(run, max_str=20000)
                 run_dir = None
                 pipeline_run_id = None
@@ -2095,6 +2101,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "mock_reason": _mock_reason(settings, req.mock, mock),
             "recipe": recipe,
             "topic": topic,
+            "server": record.get("server"),
+            "dataset": record.get("dataset"),
             "status": "running",
             "poll": f"/api/pipeline/{api_run_id}",
         }

@@ -595,10 +595,14 @@ def pipeline_run(
     topic: str = typer.Option(..., "--topic", "-t", help="研究主题"),
     project: Path | None = typer.Option(None, "--project", "-p"),
     until: str | None = typer.Option(None, "--until", help="跑到指定阶段后停止"),
+    server: str | None = typer.Option(None, "--server", help="指定 GPU 服务器名（默认自动选择）"),
+    dataset: str | None = typer.Option(
+        None, "--dataset", help="本地数据集路径（默认自动探测项目 data/ 目录）"
+    ),
     mock: bool = typer.Option(False, "--mock", help="离线 Mock 模式"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
-    """运行科研流水线：调研 → 精读 → 创新 → 实验 → 论文 → 配图。"""
+    """运行科研流水线：课题定义 → 调研 → 精读 → 创新 → GPU/数据 → 实验 → 配图 → 论文。"""
     settings = _settings(project)
     from sciforge.agent.runtime import make_bus
     from sciforge.pipeline.engine import PipelineRunner
@@ -610,7 +614,7 @@ def pipeline_run(
     bus = make_bus(ConsoleEventHandler())
     runner = PipelineRunner(settings, project, mock=mock, bus=bus)
     try:
-        run = runner.run(recipe, topic, until=until)
+        run = runner.run(recipe, topic, until=until, server=server, dataset=dataset)
     except KeyboardInterrupt as exc:
         err_console.print("[yellow]已中断[/yellow]")
         raise typer.Exit(130) from exc

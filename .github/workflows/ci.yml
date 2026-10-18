@@ -16,11 +16,14 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install
-        run: uv pip install --system -e ".[dev]"
+          enable-cache: true
+      - name: Create venv & install
+        run: |
+          uv venv --python ${{ matrix.python-version }} .venv
+          uv pip install --python .venv/bin/python -e ".[dev]"
       - name: Lint
-        run: ruff check sciforge tests
+        run: .venv/bin/ruff check sciforge tests
       - name: Test (offline)
-        run: pytest -q
+        run: .venv/bin/pytest -q
         env:
           SCIFORGE_MOCK: "1"

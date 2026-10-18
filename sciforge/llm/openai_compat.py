@@ -18,6 +18,8 @@ from sciforge.core.types import ChatMessage, LLMResponse, ToolCall, Usage
 from sciforge.llm.base import LLMError, LLMProvider
 
 RETRY_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
+#: 推理型模型不接受 temperature/top_p 等采样参数（DeepSeek 新命名含 -pro）
+REASONING_MODEL_HINTS = ("reasoner", "r1", "v4-pro", "thinking")
 
 
 class OpenAICompatProvider(LLMProvider):
@@ -71,8 +73,10 @@ class OpenAICompatProvider(LLMProvider):
             "messages": [m.to_api_dict() for m in messages],
             "stream": stream,
         }
-        # deepseek-reasoner 不接受 temperature/top_p 等采样参数
-        if temperature is not None and "reasoner" not in model.lower():
+        # 推理模型（deepseek-v4-pro / reasoner 等）不接受采样参数
+        lower_model = model.lower()
+        is_reasoning = any(hint in lower_model for hint in REASONING_MODEL_HINTS)
+        if temperature is not None and not is_reasoning:
             payload["temperature"] = temperature
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens

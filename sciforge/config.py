@@ -74,8 +74,8 @@ class ProviderConfig(_Model):
     base_url: str = DEFAULT_DEEPSEEK_BASE_URL
     api_key: str | None = None
     api_key_env: str | None = "DEEPSEEK_API_KEY"
-    default_model: str = "deepseek-chat"
-    models: list[str] = Field(default_factory=lambda: ["deepseek-chat", "deepseek-reasoner"])
+    default_model: str = "deepseek-flash"
+    models: list[str] = Field(default_factory=lambda: ["deepseek-flash", "deepseek-v4-pro"])
     timeout: float = 180.0
     temperature: float = 0.6
     max_tokens: int = 4096
@@ -83,7 +83,7 @@ class ProviderConfig(_Model):
     # 美元 / 百万 token，可选；用于成本估算
     input_cost_per_mtok: float = 0.0
     output_cost_per_mtok: float = 0.0
-    # 有些服务（如 deepseek-reasoner）不支持 temperature / tools，交给 provider 自行忽略
+    # 有些服务（如推理模型 deepseek-v4-pro / reasoner）不支持 temperature / tools，交给 provider 自行忽略
     supports_tools: bool = True
     supports_stream: bool = True
 
@@ -102,8 +102,8 @@ class LLMConfig(_Model):
             "deepseek": ProviderConfig(
                 base_url=DEFAULT_DEEPSEEK_BASE_URL,
                 api_key_env="DEEPSEEK_API_KEY",
-                default_model="deepseek-chat",
-                models=["deepseek-chat", "deepseek-reasoner"],
+                default_model="deepseek-flash",
+                models=["deepseek-flash", "deepseek-v4-pro"],
                 input_cost_per_mtok=0.27,
                 output_cost_per_mtok=1.10,
             )
@@ -112,11 +112,11 @@ class LLMConfig(_Model):
     # 科研流水线中不同角色可路由到不同模型
     roles: dict[str, RoleConfig] = Field(
         default_factory=lambda: {
-            "planner": RoleConfig(provider="deepseek", model="deepseek-reasoner"),
-            "executor": RoleConfig(provider="deepseek", model="deepseek-chat"),
-            "writer": RoleConfig(provider="deepseek", model="deepseek-chat"),
-            "reviewer": RoleConfig(provider="deepseek", model="deepseek-reasoner"),
-            "vision": RoleConfig(provider="deepseek", model="deepseek-chat"),
+            "planner": RoleConfig(provider="deepseek", model="deepseek-v4-pro"),
+            "executor": RoleConfig(provider="deepseek", model="deepseek-flash"),
+            "writer": RoleConfig(provider="deepseek", model="deepseek-flash"),
+            "reviewer": RoleConfig(provider="deepseek", model="deepseek-v4-pro"),
+            "vision": RoleConfig(provider="deepseek", model="deepseek-flash"),
         }
     )
 
@@ -425,8 +425,8 @@ default = "deepseek"
 type = "openai-compatible"
 base_url = "https://api.deepseek.com/v1"
 api_key_env = "DEEPSEEK_API_KEY"
-default_model = "deepseek-chat"
-models = ["deepseek-chat", "deepseek-reasoner"]
+default_model = "deepseek-flash"
+models = ["deepseek-flash", "deepseek-v4-pro"]
 input_cost_per_mtok = 0.27
 output_cost_per_mtok = 1.10
 
@@ -439,11 +439,11 @@ output_cost_per_mtok = 1.10
 
 [llm.roles.planner]
 provider = "deepseek"
-model = "deepseek-reasoner"
+model = "deepseek-v4-pro"
 
 [llm.roles.executor]
 provider = "deepseek"
-model = "deepseek-chat"
+model = "deepseek-flash"
 
 [literature]
 # email = "you@example.com"   # Unpaywall 礼貌池

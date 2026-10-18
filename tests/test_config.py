@@ -18,8 +18,10 @@ from sciforge.config import (
 def test_default_settings(sciforge_home: Path) -> None:
     settings = get_settings()
     assert settings.llm.default == "deepseek"
+    assert settings.llm.providers["deepseek"].default_model == "deepseek-flash"
+    assert settings.llm.roles["executor"].model == "deepseek-flash"
     assert settings.llm.providers["deepseek"].base_url.startswith("https://api.deepseek.com")
-    assert settings.llm.roles["planner"].model == "deepseek-reasoner"
+    assert settings.llm.roles["planner"].model == "deepseek-v4-pro"
     assert settings.literature.daily_arxiv_language == "Chinese"
     assert data_home() == sciforge_home
 
@@ -112,4 +114,4 @@ def test_global_config_roundtrip_with_servers(sciforge_home: Path) -> None:
     assert server.name == "gpu1"
     assert server.host == "10.0.0.2"
     assert server.conda_env == "torch"
-    assert reloaded.llm.roles["planner"].model == "deepseek-reasoner"
+    assert reloaded.llm.roles["planner"].model == "deepseek-v4-pro"

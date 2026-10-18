@@ -22,7 +22,7 @@ def _ok_response(body: str = "hello", tool_call: dict | None = None) -> dict:
         message["tool_calls"] = [tool_call]
     return {
         "id": "x",
-        "model": "deepseek-chat",
+        "model": "deepseek-flash",
         "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
         "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
     }
@@ -33,7 +33,7 @@ def _provider(handler) -> OpenAICompatProvider:
     client = httpx.Client(transport=transport)
     config = ProviderConfig(
         base_url="https://api.deepseek.com/v1",
-        default_model="deepseek-chat",
+        default_model="deepseek-flash",
         input_cost_per_mtok=0.27,
         output_cost_per_mtok=1.10,
     )
@@ -46,7 +46,7 @@ def test_chat_parses_content_and_usage() -> None:
     assert response.content == "你好"
     assert response.usage.total_tokens == 15
     assert response.usage.cost_usd > 0
-    assert response.model == "deepseek-chat"
+    assert response.model == "deepseek-flash"
 
 
 def test_chat_parses_tool_calls() -> None:
@@ -70,7 +70,7 @@ def test_chat_401_gives_actionable_error() -> None:
 
 
 def test_missing_api_key_error() -> None:
-    config = ProviderConfig(base_url="https://api.deepseek.com/v1", default_model="deepseek-chat", api_key_env="NOPE_KEY")
+    config = ProviderConfig(base_url="https://api.deepseek.com/v1", default_model="deepseek-flash", api_key_env="NOPE_KEY")
     provider = OpenAICompatProvider("deepseek", config, api_key=None)
     with pytest.raises(LLMError) as excinfo:
         provider.chat([ChatMessage(role="user", content="hi")])

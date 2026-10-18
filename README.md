@@ -321,8 +321,8 @@ default = "deepseek"
 type = "openai-compatible"
 base_url = "https://api.deepseek.com/v1"
 api_key_env = "DEEPSEEK_API_KEY"
-default_model = "deepseek-chat"
-models = ["deepseek-chat", "deepseek-reasoner"]
+default_model = "deepseek-flash"
+models = ["deepseek-flash", "deepseek-v4-pro"]
 
 # 本地 vLLM / Ollama
 [llm.providers.local]
@@ -336,7 +336,7 @@ default_model = "Qwen/Qwen2.5-72B-Instruct"
 # 按角色路由：重推理用 reasoner，写作/执行用 chat
 [llm.roles.planner]
 provider = "deepseek"
-model = "deepseek-reasoner"
+model = "deepseek-v4-pro"
 
 [llm.roles.executor]
 provider = "local"

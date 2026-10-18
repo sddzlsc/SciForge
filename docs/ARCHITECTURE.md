@@ -155,7 +155,7 @@ class LLMRouter:
     usage: Usage                                          # 累计
 ```
 
-- 默认 provider：`deepseek`，`base_url=https://api.deepseek.com/v1`，`deepseek-chat` / `deepseek-reasoner`；
+- 默认 provider：`deepseek`，`base_url=https://api.deepseek.com/v1`，`deepseek-flash` / `deepseek-v4-pro`；
   api key 从 `DEEPSEEK_API_KEY`（或配置里的 `api_key_env` / `api_key`）读取。
 - 任意 OpenAI 兼容服务（OpenAI / OpenRouter / vLLM / Ollama / 硅基流动 …）通过配置
   `[[llm.providers.<name>]] type="openai-compatible"` 添加。
@@ -175,11 +175,11 @@ default = "deepseek"
 type = "openai-compatible"
 base_url = "https://api.deepseek.com/v1"
 api_key_env = "DEEPSEEK_API_KEY"
-default_model = "deepseek-chat"
-models = ["deepseek-chat", "deepseek-reasoner"]
+default_model = "deepseek-flash"
+models = ["deepseek-flash", "deepseek-v4-pro"]
 [llm.roles.planner]
 provider = "deepseek"
-model = "deepseek-reasoner"
+model = "deepseek-v4-pro"
 
 [literature]
 email = ""            # Unpaywall / 礼貌池

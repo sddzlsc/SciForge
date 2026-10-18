@@ -19,26 +19,26 @@ default = "deepseek"
 type = "openai-compatible"
 base_url = "https://api.deepseek.com/v1"
 api_key_env = "DEEPSEEK_API_KEY"
-default_model = "deepseek-chat"
-models = ["deepseek-chat", "deepseek-reasoner"]
+default_model = "deepseek-flash"
+models = ["deepseek-flash", "deepseek-v4-pro"]
 input_cost_per_mtok = 0.27
 output_cost_per_mtok = 1.10
 
 [llm.roles.planner]
 provider = "deepseek"
-model = "deepseek-reasoner"
+model = "deepseek-v4-pro"
 
 [llm.roles.executor]
 provider = "deepseek"
-model = "deepseek-chat"
+model = "deepseek-flash"
 
 [llm.roles.writer]
 provider = "deepseek"
-model = "deepseek-chat"
+model = "deepseek-flash"
 
 [llm.roles.reviewer]
 provider = "deepseek"
-model = "deepseek-reasoner"
+model = "deepseek-v4-pro"
 ```
 
 ## 本地 vLLM
@@ -76,17 +76,21 @@ default_model = "qwen2.5:32b"
 type = "openai-compatible"
 base_url = "https://openrouter.ai/api/v1"
 api_key_env = "OPENROUTER_API_KEY"
-default_model = "deepseek/deepseek-chat"
+default_model = "deepseek/deepseek-chat"  # OpenRouter 用其自有模型名
 extra_headers = { "HTTP-Referer" = "http://localhost", "X-Title" = "SciForge" }
 ```
 
 ## 路由与降级策略
 
-- `planner`：重推理任务（调研、创新点、实验设计）→ 建议 reasoner 类模型
-- `executor`：工具调用密集（文献、远程执行）→ 建议稳定 function calling 的模型
-- `writer`：长文写作 → 建议长上下文模型
-- `reviewer`：审稿自检 → 建议强推理模型
-- 任一角色可指向同一个 provider/model；成本敏感时把 writer/executor 换成便宜模型。
+当前 DeepSeek 默认（2026-10 起）：**`deepseek-flash`（快） + `deepseek-v4-pro`（强推理）**。
+
+- `planner`：调研、创新点、实验设计 → `deepseek-v4-pro`
+- `executor`：工具调用密集（文献、远程执行）→ `deepseek-flash`
+- `writer`：长文写作 → `deepseek-flash`（长上下文需求高时可改 v4-pro）
+- `reviewer`：审稿自检 → `deepseek-v4-pro`
+- `vision`：多模态辅助 → `deepseek-flash`
+- 任一角色可指向同一个 provider/model；成本敏感时全用 `deepseek-flash`。
+- 推理模型（`deepseek-v4-pro` / `-reasoner` 等）不接受 temperature 等采样参数，SciForge 会自动忽略。
 
 ## 验证
 
@@ -102,6 +106,6 @@ sciforge llm test --role executor --prompt "用一句话说明什么是 MoE"
 |---|---|
 | 401 | key 无效；检查 `api_key_env` 指向的环境变量是否 export |
 | 404 | base_url 少了 `/v1` 或服务不支持 Chat Completions |
-| 400 + temperature | `deepseek-reasoner` 不支持采样参数，SciForge 已自动忽略 |
+| 400 + temperature | `deepseek-v4-pro` / reasoner 类模型不支持采样参数，SciForge 已自动忽略 |
 | 429 | 限流：降低并发/换 key/给 provider 加 `timeout` |
 | 工具调用乱码 | 模型 function calling 不稳定：换 executor 模型，或降低 `agent.max_steps` |

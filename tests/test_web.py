@@ -717,10 +717,10 @@ def test_llm_roles_validation_and_update(client: TestClient) -> None:
     assert bad_role.status_code == 400
     ok = client.post(
         "/api/llm/roles",
-        json={"roles": {"planner": {"provider": "deepseek", "model": "deepseek-reasoner"}}},
+        json={"roles": {"planner": {"provider": "deepseek", "model": "deepseek-v4-pro"}}},
     )
     assert ok.status_code == 200
-    assert ok.json()["roles"]["planner"]["model"] == "deepseek-reasoner"
+    assert ok.json()["roles"]["planner"]["model"] == "deepseek-v4-pro"
 
 
 def test_llm_test_without_key_is_friendly(client: TestClient) -> None:

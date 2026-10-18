@@ -190,7 +190,7 @@ def _http_get(url: str, *, timeout: float = 30.0) -> str:
     """单点网络访问，测试里可 monkeypatch。"""
     import httpx
 
-    headers = {"User-Agent": "SciForge/0.1 (+https://github.com/sciforge/sciforge)"}
+    headers = {"User-Agent": "SciForge/0.1 (+https://github.com/sddzlsc/SciForge)"}
     response = httpx.get(url, timeout=timeout, follow_redirects=True, headers=headers)
     response.raise_for_status()
     return response.text

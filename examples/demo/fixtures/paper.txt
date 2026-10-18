@@ -1,7 +1,7 @@
 Adaptive Token Routing for Efficient Video Diffusion Transformers
 
 Lin Chen, Yuki Tanaka, Minghao Zhou, Elena Petrova
-SciForge Demo Lab - https://github.com/sciforge/sciforge
+SciForge Demo Lab - https://github.com/sddzlsc/SciForge
 arXiv:2601.00042 [cs.CV]
 
 Abstract

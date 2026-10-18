@@ -41,8 +41,8 @@ GUI 实跑验收（2026-10-18）：`sciforge gui` 启动后 headless Chrome 逐�
 | 架构图（SVG/PNG + spec） | `sciforge/templates/figures/outputs/fig1_architecture.*`、`fig3_transformer_block.*` |
 | 实验曲线（PDF/SVG/PNG） | `sciforge/templates/figures/outputs/fig2_curves.*` |
 | 三线表（LaTeX/Markdown） | `sciforge/templates/figures/outputs/table_main_results.*` |
-| GUI 实跑截图 | `examples/demo/screenshots/live-console-*.png` |
-| Web 截图（早期） | `examples/demo/screenshots/console-*.jpg` |
+| GUI 截图 | `examples/demo/screenshots/`（README 引用；在临时 HOME/项目环境生成，不含个人路径） |
+| 配图样例 | `sciforge/templates/figures/outputs/` |
 | 离线演示 | `sciforge demo` → `sciforge-demo/DEMO.md` |
 | DSH 技能 | `~/.dsh/skills/*/SKILL.md`（24 个） |
 

@@ -1,5 +1,7 @@
 # SciForge · 深度学习科研智能体 Harness
 
+> GitHub: [sddzlsc/SciForge](https://github.com/sddzlsc/SciForge) · MIT License · 本地运行 / 可接任意 OpenAI 兼容模型
+
 > **本地运行 · DeepSeek 驱动 · 可 SSH 调度 GPU 集群 · 从文献到顶会论文与配图**
 >
 > 文献获取 → 读论文 → 找创新点 → 模块化实验 → 远程训练 → 结果分析 → 论文写作 → 顶刊/顶会级模型图
@@ -124,9 +126,7 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 
 ![GUI 服务器配置：填空 + SSH 测试](examples/demo/screenshots/gui-server-config.png)
 
-![GUI 文献检索设置：免费源 / 出版社过滤 / 全文渠道](examples/demo/screenshots/gui-literature-config.png)
-
-![GUI 文献页：来源下拉（PubMed / Europe PMC / OpenReview / Crossref…）](examples/demo/screenshots/gui-literature-sources-search.png)
+![GUI 文献：来源下拉（PubMed / Europe PMC / OpenReview / Crossref…）+ 免费源与出版社过滤](examples/demo/screenshots/gui-literature-sources-search.png)
 
 ## 核心能力
 
@@ -148,7 +148,7 @@ sciforge serve --open                         # 等价写法；不自动开浏�
 ### 1. 安装（Python ≥ 3.10）
 
 ```bash
-git clone <this-repo> sciforge && cd sciforge
+git clone https://github.com/sddzlsc/SciForge.git sciforge && cd sciforge
 uv venv --python 3.12 .venv
 source .venv/bin/activate
 uv pip install -e ".[dev]"        # 基础 + 开发依赖

@@ -48,7 +48,7 @@ err_console = Console(stderr=True)
 
 AGENTS_MD = """# 科研项目：{name}
 
-> 本项目由 [SciForge](https://github.com/sciforge/sciforge) 管理。任何 AI Agent（DSH / Claude Code / Codex）
+> 本项目由 [SciForge](https://github.com/sddzlsc/SciForge) 管理。任何 AI Agent（DSH / Claude Code / Codex）
 > 在此目录工作时，优先通过 `sciforge` CLI 或 `sciforge` 的 Skill 执行科研任务。
 
 ## 项目结构

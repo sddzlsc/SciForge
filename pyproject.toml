@@ -50,7 +50,7 @@ sciforge = "sciforge.cli:main"
 sf = "sciforge.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/sciforge/sciforge"
+Homepage = "https://github.com/sddzlsc/SciForge"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

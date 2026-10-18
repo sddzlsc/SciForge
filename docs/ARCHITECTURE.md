@@ -21,20 +21,23 @@ SciForge 是一个**本地运行、DeepSeek 驱动、可接任意 OpenAI 兼容 
 3. **DSH 集成**：`sciforge skills install --target dsh` 把 Harness 的 Skill 装进
    `~/.dsh/skills/`，让 DeepSeek Harness（DSH）直接驱动本 Harness 的 CLI/工具。
 
-## 2. 仓库布局与归属（write scope）
+## 2. 仓库布局与归属
+
+> T1–T5 是开发分工代号，开源后可按模块认领；`维护者` 指维护者。
+
 
 ```
-pyproject.toml, .gitignore                  Lead
-README.md / docs/*.md                       Lead
-sciforge/__init__.py                        Lead
-sciforge/cli.py                             Lead（各模块用 register(app) 挂子命令）
-sciforge/config.py                          Lead
-sciforge/core/                              Lead
-sciforge/llm/                               Lead
-sciforge/agent/                             Lead
-sciforge/pipeline/                          Lead
-sciforge/ideation.py                        Lead
-sciforge/tools/__init__.py  (自动 import 各模块)   Lead
+pyproject.toml, .gitignore                  维护者
+README.md / docs/*.md                       维护者
+sciforge/__init__.py                        维护者
+sciforge/cli.py                             维护者（各模块用 register(app) 挂子命令）
+sciforge/config.py                          维护者
+sciforge/core/                              维护者
+sciforge/llm/                               维护者
+sciforge/agent/                             维护者
+sciforge/pipeline/                          维护者
+sciforge/ideation.py                        维护者
+sciforge/tools/__init__.py  (自动 import 各模块)   维护者
 sciforge/tools/literature.py                T1 literature
 sciforge/tools/paper_reader.py              T1 literature
 sciforge/library.py                         T1 literature
@@ -50,15 +53,15 @@ sciforge/skills_lib/**                      T4 skills
 sciforge/catalog/**                         T4 skills
 sciforge/tools/skills.py                   T4 skills（add_cli(app) 挂 `sciforge skills ...`）
 sciforge/web/**                             T5 web
-examples/demo/**                            T5 web（fixtures + demo 脚本；Lead 负责 demo 入口串起来）
+examples/demo/**                            T5 web（fixtures + demo 脚本；维护者 负责 demo 入口串起来）
 tests/test_<module>.py                      各自模块作者
 ```
 
 规则：
 
-- **只写自己 scope 内的文件**；需要改别人的接口时，先给 Lead 发消息，不要直接改。
-- 所有 `__init__.py` 由 Lead 预创建；子模块通过 `register_tool(...)` / `register(app)` 自注册。
-- 不要新增重量级依赖；需要的新依赖先告知 Lead，由 Lead 写进 `pyproject.toml`。
+- **只写自己 scope 内的文件**；需要改别人的接口时，先给 维护者 发消息，不要直接改。
+- 所有 `__init__.py` 由 维护者 预创建；子模块通过 `register_tool(...)` / `register(app)` 自注册。
+- 不要新增重量级依赖；需要的新依赖先告知 维护者，由 维护者 写进 `pyproject.toml`。
 - 所有中文文案用 UTC+8 语境；代码标识符英文；docstring 可中英混排。
 
 ## 3. 核心数据结构（`sciforge/core/types.py`，已实现，不可改签名）
@@ -238,7 +241,7 @@ class PipelineRunner:
     def run(self, recipe: Recipe | str, topic: str, until: str | None = None) -> PipelineRun
 ```
 
-- 内置 recipe 在 `sciforge/pipeline/recipes.py`（Lead 实现）。
+- 内置 recipe 在 `sciforge/pipeline/recipes.py`（维护者 实现）。
 - 每个 stage 产出 `<project>/.sciforge/runs/<run_id>/<stage>.md`，并调用 LLM 做结构化总结。
 - `sciforge pipeline run --recipe full --topic "..." --mock` 必须能在**无 API key、无网络**下跑通
   （MockProvider + demo fixtures）。
@@ -246,7 +249,7 @@ class PipelineRunner:
 ## 9. CLI 契约
 
 - 主入口 `sciforge = sciforge.cli:main`。
-- 子模块用 `def register(app: typer.Typer) -> None` 挂子命令，Lead 在 `cli.py` 中调用。
+- 子模块用 `def register(app: typer.Typer) -> None` 挂子命令，维护者 在 `cli.py` 中调用。
 - 命令一律支持 `--json` 输出（机器可读）；错误用红色面板，不裸抛 traceback（`--debug` 除外）。
 - 示例：
 
@@ -308,13 +311,13 @@ def render_latex_table(spec: dict) -> str     # booktabs 三线表
 ## 12. 测试与验收
 
 - 每个模块交付时：`uv run pytest tests/test_<module>.py -q` 全绿，ruff 无 error。
-- Lead 会在合并后跑全量：`uv run pytest -q`、`sciforge doctor`、`sciforge demo`。
+- 维护者 会在合并后跑全量：`uv run pytest -q`、`sciforge doctor`、`sciforge demo`。
 - 不要留下未使用的 import、TODO 占位实现、`raise NotImplementedError`。
 - 交付说明写在最终消息里：改了哪些文件、如何验证、已知限制。
 
 ## 13. 环境
 
-- 工作目录：`/Users/sddzlsc/Documents/北京万维速达/sci`（所有命令在此执行）。
+- 工作目录：`仓库根目录`（所有命令在此执行）。
 - Python：`.venv`（uv 创建，3.12），用 `uv pip install -e ".[dev]"`；运行用 `.venv/bin/python`。
 - 不得启动常驻服务占用 8765 端口以外端口；不得修改 `~/.dsh` 之外的全局配置。
 
@@ -438,4 +441,4 @@ class SkillManager:
 - T2：`sciforge ssh ...`、`sciforge gpu ...`、`sciforge exp ...`
 - T3：`sciforge fig ...`、`sciforge write ...`
 - T4：`sciforge skills ...`
-- T5：不挂 CLI；由 Lead 的 `sciforge serve` 调用。
+- T5：不挂 CLI；由 维护者 的 `sciforge serve` 调用。

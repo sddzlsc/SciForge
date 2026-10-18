@@ -30,7 +30,7 @@ sciforge ssh add gpu1 --host 10.0.0.2 --user root --key ~/.ssh/id_ed25519 \
   --workdir ~/sciforge --conda-env torch
 
 # 粘贴云厂商给的 ssh 命令 + 密码（AutoDL 等）
-sciforge ssh add autodl --from-command "ssh -p 48322 root@connect.bjb2.seetacloud.com" \
+sciforge ssh add autodl --from-command "ssh -p 48322 root@connect.example.com" \
   --password "你的密码"
 
 sciforge ssh test gpu1
@@ -53,7 +53,7 @@ sciforge gpu status gpu1 --watch    # 每 5s 刷新
 很多云 GPU（如 AutoDL）只给一条带端口的登录命令和密码，可直接在 GUI 里粘贴：
 
 ```text
-ssh -p 48322 root@connect.bjb2.seetacloud.com
+ssh -p 48322 root@connect.example.com
 ```
 
 1. 打开 GUI → **服务器** 页；

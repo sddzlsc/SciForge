@@ -29,7 +29,7 @@ PAPER_PREVIEW_PNG = FIXTURES_DIR / "paper_preview.png"
 
 TITLE = "Adaptive Token Routing for Efficient Video Diffusion Transformers"
 AUTHORS = "Lin Chen, Yuki Tanaka, Minghao Zhou, Elena Petrova"
-AFFILIATION = "SciForge Demo Lab - https://github.com/sciforge/sciforge"
+AFFILIATION = "SciForge Demo Lab - https://github.com/sddzlsc/SciForge"
 ARXIV_LIKE_ID = "arXiv:2601.00042 [cs.CV]"
 
 ABSTRACT = (

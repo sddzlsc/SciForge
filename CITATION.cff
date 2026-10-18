@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+title: "SciForge: 深度学习科研智能体 Harness"
+message: "If you use SciForge in your research, please cite this repository."
+type: software
+license: MIT
+repository-code: "https://github.com/sddzlsc/SciForge"
+keywords:
+  - scientific-agent
+  - research-harness
+  - deepseek
+  - llm
+  - deep-learning
+  - literature-review
+authors:
+  - name: "SciForge Contributors"
+version: 0.1.0
+date-released: 2026-10-18

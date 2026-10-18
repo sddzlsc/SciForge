@@ -959,8 +959,8 @@ def test_registered_remote_tools() -> None:
 def test_parse_ssh_command_variants() -> None:
     from sciforge.tools.remote import parse_ssh_command
 
-    parsed = parse_ssh_command("ssh -p 48322 root@connect.bjb2.seetacloud.com")
-    assert parsed["host"] == "connect.bjb2.seetacloud.com"
+    parsed = parse_ssh_command("ssh -p 48322 root@connect.example.com")
+    assert parsed["host"] == "connect.example.com"
     assert parsed["port"] == 48322
     assert parsed["user"] == "root"
 

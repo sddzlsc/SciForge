@@ -30,7 +30,7 @@ GUI：**服务器** 页 → **上传文件到 GPU** 面板：
 
 ```bash
 # 直接 scp / rsync 到服务器（大文件更快）
-scp -P 48322 ./model.ckpt root@connect.bjb2.seetacloud.com:~/sciforge/data/
+scp -P 48322 ./model.ckpt root@connect.example.com:~/sciforge/data/
 rsync -az --partial -e "ssh -p 48322" ./data/ root@host:~/sciforge/data/
 
 # 用 SciForge 的同步工具

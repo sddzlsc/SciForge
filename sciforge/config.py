@@ -138,7 +138,7 @@ class LiteratureConfig(_Model):
     )
     request_timeout: float = 30.0
     cache_ttl_seconds: int = 3600
-    user_agent: str = "SciForge/0.1 (+https://github.com/sciforge/sciforge)"
+    user_agent: str = "SciForge/0.1 (+https://github.com/sddzlsc/SciForge)"
 
 
 class FigureConfig(_Model):

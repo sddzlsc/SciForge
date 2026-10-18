@@ -209,7 +209,7 @@ def parse_ssh_command(text: str) -> dict[str, Any]:
         else:
             parsed["host"] = target
     if not parsed["host"]:
-        raise ValueError("没有解析出 host；示例：ssh -p 48322 root@connect.bjb2.seetacloud.com")
+        raise ValueError("没有解析出 host；示例：ssh -p 48322 root@connect.example.com")
     if not parsed["user"]:
         parsed["user"] = "root"
     return parsed

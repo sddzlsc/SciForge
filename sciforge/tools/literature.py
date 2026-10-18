@@ -129,7 +129,7 @@ def _request_timeout(settings: Any = None) -> float:
 
 def _user_agent(settings: Any = None) -> str:
     agent = getattr(_lit_settings(settings), "user_agent", None)
-    return str(agent or "SciForge/0.1 (+https://github.com/sciforge/sciforge)")
+    return str(agent or "SciForge/0.1 (+https://github.com/sddzlsc/SciForge)")
 
 
 def _contact_email(settings: Any = None) -> str:

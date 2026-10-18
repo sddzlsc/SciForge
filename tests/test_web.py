@@ -832,11 +832,11 @@ def test_literature_config_validation(client: TestClient) -> None:
 def test_server_parse_endpoint(client: TestClient) -> None:
     resp = client.post(
         "/api/servers/parse",
-        json={"command": "ssh -p 48322 root@connect.bjb2.seetacloud.com"},
+        json={"command": "ssh -p 48322 root@connect.example.com"},
     )
     assert resp.status_code == 200
     parsed = resp.json()["parsed"]
-    assert parsed["host"] == "connect.bjb2.seetacloud.com"
+    assert parsed["host"] == "connect.example.com"
     assert parsed["port"] == 48322
     assert parsed["user"] == "root"
 
@@ -849,7 +849,7 @@ def test_server_password_auth_save_and_mask(client: TestClient, env) -> None:
 
     payload = {
         "name": "autodl",
-        "host": "connect.bjb2.seetacloud.com",
+        "host": "connect.example.com",
         "port": 48322,
         "user": "root",
         "password": "autodl-secret-pw",

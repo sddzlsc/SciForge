@@ -1,0 +1,50 @@
+# SciForge demo fixture — Figure 1 模型架构图 DSL
+# 对应 docs/ARCHITECTURE.md §11 图表契约：sciforge.figures.arch.render_architecture(spec, out)
+# 用法：sciforge fig arch --spec examples/demo/fixtures/arch_spec.yaml -o figures/fig1_arch.svg
+#
+# 主题：ATR-VDiT — Adaptive Token Routing for Efficient Video Diffusion Transformers
+# 说明：本文件与 examples/demo/fixtures/paper.pdf 中的方法章节一一对应；
+#       CVPR/NeurIPS 风格由渲染器统一控制（白底、Okabe-Ito 配色、8pt 字号）。
+
+title: "ATR-VDiT: Adaptive Token Routing for Efficient Video Diffusion Transformers"
+direction: horizontal
+width: 760
+
+nodes:
+  # ---------------- 输入与 token 化 ----------------
+  - {id: clip, label: "Video Clip", sub: "8×256×256×3", kind: data, group: input, row: 0, col: 0}
+  - {id: vae, label: "3D VAE", sub: "latent 4×32×32×32", kind: module, group: input, row: 1, col: 0}
+  - {id: patchify, label: "3D Patchify", sub: "2048 tokens × 384-d", kind: op, group: input, row: 2, col: 0}
+
+  # ---------------- 自适应 token 路由 ----------------
+  - {id: router, label: "Adaptive Token Router", sub: "lightweight MLP + Gumbel", kind: module, group: adaptive, row: 0, col: 0}
+  - {id: select, label: "Top-k Selection", sub: "k = 40% – 90%", kind: op, group: adaptive, row: 1, col: 0}
+
+  # ---------------- 扩散 Transformer 主干 ----------------
+  - {id: blocks, label: "DiT Blocks × 12", sub: "window + global attention", kind: module, group: backbone, row: 0, col: 0}
+  - {id: merge, label: "Token Merge", sub: "unselected → nearest", kind: op, group: backbone, row: 1, col: 0}
+
+  # ---------------- 输出与损失 ----------------
+  - {id: head, label: "Denoising Head", sub: "predict ε", kind: module, group: output, row: 0, col: 0}
+  - {id: loss, label: "MSE Loss", sub: "ε-prediction", kind: loss, group: output, row: 1, col: 0}
+  - {id: x0, label: "Predicted x̂₀", sub: "latent 4×32×32×32", kind: tensor, group: output, row: 2, col: 0}
+  - {id: decode, label: "3D VAE Decode", sub: "8×256×256×3", kind: module, group: output, row: 3, col: 0}
+
+edges:
+  - {from: clip, to: vae}
+  - {from: vae, to: patchify}
+  - {from: patchify, to: router, label: "tokens"}
+  - {from: router, to: select, label: "importance"}
+  - {from: patchify, to: blocks, label: "all tokens", style: dashed}
+  - {from: select, to: blocks, label: "top-k tokens"}
+  - {from: blocks, to: merge, label: "sparse tokens"}
+  - {from: merge, to: head}
+  - {from: head, to: loss, label: "ε"}
+  - {from: head, to: x0, label: "x̂₀"}
+  - {from: x0, to: decode}
+
+groups:
+  - {id: input, label: "Input & Tokenization", row: 0, col: 0}
+  - {id: adaptive, label: "Adaptive Compute", row: 0, col: 1}
+  - {id: backbone, label: "Diffusion Transformer", row: 0, col: 2}
+  - {id: output, label: "Prediction & Decoding", row: 0, col: 3}

@@ -1,0 +1,8 @@
+torch>=2.1
+transformers>=4.40
+peft>=0.10
+datasets>=2.18
+accelerate>=0.29
+pyyaml>=6.0
+# 可选：4bit 量化（需要 CUDA）
+# bitsandbytes>=0.43

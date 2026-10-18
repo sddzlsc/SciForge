@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>SciForge · 本地科研智能体控制台</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="bg-orbit" aria-hidden="true"></div>
+  <div id="app" class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
+            <defs>
+              <linearGradient id="brand-grad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#22d3ee"/>
+                <stop offset="1" stop-color="#6366f1"/>
+              </linearGradient>
+            </defs>
+            <path d="M16 2.5 28 9.3v13.4L16 29.5 4 22.7V9.3Z" fill="none" stroke="url(#brand-grad)" stroke-width="1.6"/>
+            <path d="M16 9.2v13.6M9.7 12.8l12.6 6.4M22.3 12.8 9.7 19.2" stroke="url(#brand-grad)" stroke-width="1.2" stroke-linecap="round"/>
+            <circle cx="16" cy="16" r="2.4" fill="#22d3ee"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <strong>SciForge</strong>
+          <span>科研智能体控制台</span>
+        </div>
+      </div>
+
+      <nav class="nav" id="nav" aria-label="主导航">
+        <button class="nav-item active" data-page="chat" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 4.5h13v8.2h-7.2L5.6 15.6v-2.9H3.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span>对话</span>
+        </button>
+        <button class="nav-item" data-page="literature" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3.5h5.4c.9 0 1.6.7 1.6 1.6v11.4H5.6C4.7 16.5 4 15.8 4 14.9Z M16 3.5h-5.4v13H14.4c.9 0 1.6-.7 1.6-1.6Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <span>文献</span>
+        </button>
+        <button class="nav-item" data-page="servers" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3.5" width="14" height="5.4" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="3" y="11.1" width="14" height="5.4" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="6" cy="6.2" r=".9" fill="currentColor"/><circle cx="6" cy="13.8" r=".9" fill="currentColor"/></svg>
+          <span>服务器</span>
+        </button>
+        <button class="nav-item" data-page="experiments" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3v5.2L3.6 14a2 2 0 0 0 1.8 2.8h9.2a2 2 0 0 0 1.8-2.8L15 8.2V3M7 3h6M4.2 11.5h11.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>实验</span>
+        </button>
+        <button class="nav-item" data-page="figures" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3.5" width="14" height="13" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m4.5 13.5 3.4-3.8 2.4 2.4 2.2-2.8 3 4.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>图表</span>
+        </button>
+        <button class="nav-item" data-page="skills" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m10 2.8 2.2 4.5 5 .7-3.6 3.5.9 4.9L10 14.1l-4.5 2.3.9-4.9L2.8 8l5-.7Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+          <span>技能</span>
+        </button>
+        <button class="nav-item" data-page="about" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10 9v5M10 6.2v.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span>关于</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="status-line">
+          <span id="dot-llm" class="dot dot-pending"></span>
+          <span id="llm-label">检测 LLM…</span>
+        </div>
+        <div class="status-line">
+          <span id="dot-tools" class="dot dot-pending"></span>
+          <span id="tools-label">检查工具…</span>
+        </div>
+        <div class="hint">只监听 127.0.0.1 · 无 CDN · 离线可用</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="page-heading">
+          <h1 id="page-title">对话</h1>
+          <p id="page-subtitle">DeepSeek 驱动的科研 Agent，工具调用实时流式展示</p>
+        </div>
+        <div class="topbar-actions">
+          <span id="mock-badge" class="badge badge-warn hidden">离线 Mock</span>
+          <span id="health-badge" class="badge badge-ghost">连接中…</span>
+          <button id="theme-toggle" class="icon-btn" type="button" title="切换深色 / 浅色主题" aria-label="切换主题">
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.2 12.4A7 7 0 0 1 7.6 3.8a7.2 7.2 0 1 0 8.6 8.6Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="pages">
+        <!-- ============================ 对话 ============================ -->
+        <section class="page active" id="page-chat" data-title="对话" data-subtitle="DeepSeek 驱动的科研 Agent，工具调用实时流式展示">
+          <div class="chat-shell">
+            <div class="chat-toolbar">
+              <div class="chips" id="quick-chips">
+                <button class="chip" type="button" data-prompt="帮我调研「扩散 Transformer 在视频生成中的高效注意力机制」的最新进展，给出研究空白和 3 个可做方向。">🔎 文献调研</button>
+                <button class="chip" type="button" data-prompt="汇总今天 cs.CV 的 arXiv 新论文，挑 3 篇最值得精读的，说明理由。">📰 每日 arXiv</button>
+                <button class="chip" type="button" data-prompt="精读一篇 ViT 代表论文，输出结构化精读笔记（问题 / 方法 / 实验 / 批判 / 可迁移点）。">📄 读论文</button>
+                <button class="chip" type="button" data-prompt="为我的「自适应 token 路由视频扩散模型」画一张 CVPR 风格的模型架构图，给出 architecture spec。">🎨 生成模型图</button>
+                <button class="chip" type="button" data-prompt="把这周的实验进展整理成一份中文周报：完成了什么、指标如何、卡在哪里、下周计划。">🗓️ 周报</button>
+              </div>
+              <div class="chat-toolbar-right">
+                <label class="switch" title="离线 Mock：不调用真实 API，用于演示 / 测试">
+                  <input type="checkbox" id="mock-toggle" checked>
+                  <span class="switch-track"></span>
+                  <span class="switch-text">离线 Mock</span>
+                </label>
+                <button id="new-session" class="btn btn-ghost btn-sm" type="button">新会话</button>
+              </div>
+            </div>
+
+            <div id="chat-messages" class="messages" aria-live="polite">
+              <div class="welcome" id="chat-welcome">
+                <div class="welcome-mark">
+                  <svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true">
+                    <path d="M24 4 43.4 15v22L24 48 4.6 37V15Z" fill="none" stroke="url(#brand-grad)" stroke-width="1.4" opacity=".8"/>
+                    <circle cx="24" cy="24" r="5.4" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+                    <circle cx="24" cy="24" r="1.8" fill="#22d3ee"/>
+                    <path d="M24 10v8M24 30v8M11.5 17l7 4M29.5 27l7 4M36.5 17l-7 4M18.5 27l-7 4" stroke="#22d3ee" stroke-width="1" opacity=".55"/>
+                  </svg>
+                </div>
+                <h2>把科研流程交给一个可审计的智能体</h2>
+                <p>文献调研 → 精读 → 创新点 → 实验设计 → 远程 GPU 训练 → 结果分析 → 论文与顶会配图。<br>所有工具调用都会以可折叠卡片实时展示。</p>
+                <div class="welcome-grid">
+                  <div class="welcome-item"><strong>工具可审计</strong><span>每次调用都有参数、结果预览与耗时</span></div>
+                  <div class="welcome-item"><strong>离线可演示</strong><span>Mock 模式无需 API key，开箱即用</span></div>
+                  <div class="welcome-item"><strong>本地优先</strong><span>127.0.0.1 监听，产物留在项目目录</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div id="chat-status" class="chat-status hidden"></div>
+
+            <form id="chat-form" class="composer" autocomplete="off">
+              <textarea id="chat-input" rows="1" placeholder="描述你的科研任务…（Enter 发送，Shift+Enter 换行）"></textarea>
+              <div class="composer-actions">
+                <span id="session-label" class="session-label">新会话</span>
+                <div class="composer-buttons">
+                  <button type="button" id="chat-stop" class="btn btn-ghost btn-sm hidden">停止</button>
+                  <button type="submit" id="chat-send" class="btn btn-primary">
+                    发送
+                    <span class="kbd">↵</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- ============================ 文献 ============================ -->
+        <section class="page" id="page-literature" data-title="文献" data-subtitle="检索 arXiv / 每日 AI 增强摘要 / 本地文献库，一键精读">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>文献检索</h2>
+              <span id="lit-source-badge" class="badge badge-ghost">未检索</span>
+            </div>
+            <form id="lit-form" class="search-row">
+              <input id="lit-query" type="search" placeholder="搜索主题 / 作者 / arXiv ID，例如：diffusion transformer">
+              <button class="btn btn-primary" type="submit">搜索</button>
+            </form>
+            <div class="tabs" id="lit-tabs">
+              <button class="tab active" data-tab="search" type="button">检索结果</button>
+              <button class="tab" data-tab="daily" type="button">每日 arXiv</button>
+              <button class="tab" data-tab="library" type="button">我的文献库</button>
+            </div>
+            <div id="lit-notice" class="notice hidden"></div>
+            <div id="lit-results" class="card-grid">
+              <div class="empty"><span class="empty-icon">📚</span><p>输入关键词检索文献。当前未接真实检索时自动展示 <code>examples/demo/fixtures</code> 的离线数据。</p></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================ 服务器 ============================ -->
+        <section class="page" id="page-servers" data-title="服务器" data-subtitle="SSH GPU 服务器配置与实时 nvidia-smi 状态（密钥永不回传浏览器）">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>GPU 服务器</h2>
+              <div class="panel-actions">
+                <span id="srv-count" class="badge badge-ghost">—</span>
+                <button id="gpu-refresh" class="btn btn-ghost btn-sm" type="button">刷新 GPU 状态</button>
+              </div>
+            </div>
+            <div id="srv-notice"></div>
+            <div id="srv-list" class="card-grid">
+              <div class="empty"><span class="empty-icon">🖥️</span><p>正在读取服务器配置…</p></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>GPU 状态</h2>
+              <span id="gpu-server-label" class="muted"></span>
+            </div>
+            <div id="gpu-body">
+              <div class="empty"><span class="empty-icon">🛰️</span><p>点击「刷新 GPU 状态」探测服务器；远程模块未就绪时会给出明确提示。</p></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================ 实验 ============================ -->
+        <section class="page" id="page-experiments" data-title="实验" data-subtitle="运行科研 Pipeline：文献 → 精读 → 创新点 → 实验 → 结果 → 论文">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>运行流水线</h2>
+              <span class="muted">PipelineRunner · 后台线程 · 轮询状态</span>
+            </div>
+            <form id="pipe-form" class="run-form">
+              <label class="field">
+                <span>Recipe</span>
+                <select id="pipe-recipe">
+                  <option value="full">full — 全流程</option>
+                </select>
+              </label>
+              <label class="field grow">
+                <span>研究主题</span>
+                <input id="pipe-topic" type="text" placeholder="例如：扩散 Transformer 在视频生成中的高效注意力机制">
+              </label>
+              <label class="switch field-switch">
+                <input type="checkbox" id="pipe-mock" checked>
+                <span class="switch-track"></span>
+                <span class="switch-text">Mock</span>
+              </label>
+              <button class="btn btn-primary" type="submit" id="pipe-run-btn">启动运行</button>
+            </form>
+            <div id="pipe-notice" class="notice hidden"></div>
+          </div>
+
+          <div class="panel hidden" id="pipe-live-panel">
+            <div class="panel-head">
+              <h2>当前运行</h2>
+              <div class="panel-actions">
+                <span id="pipe-status-badge" class="badge badge-ghost">running</span>
+                <span id="pipe-elapsed" class="muted"></span>
+              </div>
+            </div>
+            <div id="pipe-meta" class="kv"></div>
+            <div id="pipe-stages" class="timeline"></div>
+            <details class="fold">
+              <summary>事件日志（EventBus → SSE 轮询）</summary>
+              <pre id="pipe-events" class="code-block"></pre>
+            </details>
+            <div id="pipe-artifacts"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>运行历史</h2>
+              <button id="runs-refresh" class="btn btn-ghost btn-sm" type="button">刷新</button>
+            </div>
+            <div id="runs-body">
+              <div class="empty"><span class="empty-icon">🧪</span><p>还没有 pipeline 运行记录。启动一次 mock 运行即可看到阶段产物。</p></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================ 图表 ============================ -->
+        <section class="page" id="page-figures" data-title="图表" data-subtitle="顶会级配图、实验曲线与三线表产物预览，安全地通过 /figures、/files 提供">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>产物预览</h2>
+              <div class="panel-actions">
+                <span id="fig-count" class="badge badge-ghost">—</span>
+                <button id="fig-refresh" class="btn btn-ghost btn-sm" type="button">刷新</button>
+              </div>
+            </div>
+            <div id="fig-notice" class="notice hidden"></div>
+            <div id="fig-gallery" class="gallery">
+              <div class="empty"><span class="empty-icon">🖼️</span><p>还没有图片产物。运行 <code>sciforge fig arch</code> 或 pipeline 的配图阶段后，这里会自动出现 SVG / PNG / PDF 预览。</p></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>实验数据与 Spec</h2>
+              <span class="muted">点击查看内容</span>
+            </div>
+            <div id="fig-files" class="files-list">
+              <div class="empty"><span class="empty-icon">🗂️</span><p>暂无数据文件。</p></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================ 技能 ============================ -->
+        <section class="page" id="page-skills" data-title="技能" data-subtitle="科研 Skill 库：渐进披露的可复用工作流，可一键安装到 DSH">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>科研 Skills</h2>
+              <span id="skills-source" class="badge badge-ghost">—</span>
+            </div>
+            <form id="skills-form" class="search-row">
+              <input id="skills-query" type="search" placeholder="搜索技能，例如：论文 / gpu / 配图">
+              <button class="btn btn-primary" type="submit">搜索</button>
+            </form>
+            <div id="skills-notice" class="notice hidden"></div>
+            <div id="skills-grid" class="card-grid">
+              <div class="empty"><span class="empty-icon">🧩</span><p>正在加载技能库…</p></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================ 关于 ============================ -->
+        <section class="page" id="page-about" data-title="关于" data-subtitle="运行状态、安全边界与 API 端点清单">
+          <div class="about-grid">
+            <div class="panel">
+              <div class="panel-head"><h2>运行状态</h2><span id="about-version" class="badge badge-accent">—</span></div>
+              <div id="about-health" class="kv">
+                <div class="empty"><p>加载中…</p></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>模块就绪度</h2></div>
+              <div id="about-features" class="feature-list"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>API 端点</h2><a class="btn btn-ghost btn-sm" href="/api/docs" target="_blank" rel="noopener">打开 /api/docs</a></div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/health</code></td><td>版本 / LLM / 工具 / 服务器 / 模块就绪度</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/tools</code></td><td>已注册工具及 tags、JSON Schema</td></tr>
+                  <tr><td><span class="method post">POST</span></td><td><code>/api/chat</code></td><td>SSE：meta / llm_delta / assistant / tool_call / tool_result / stage / error / done</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/library</code></td><td>本地文献库（未就绪时 available=false）</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/literature/search</code></td><td>真实检索优先，否则回退 demo fixtures</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/servers</code></td><td>服务器配置（脱敏，不含任何密钥）</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/gpu</code></td><td>nvidia-smi 归一化表格（可选 ?server=）</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/runs</code></td><td>pipeline 运行历史（读 run.json）</td></tr>
+                  <tr><td><span class="method post">POST</span></td><td><code>/api/pipeline/run</code></td><td>后台线程启动 pipeline，返回 run_id</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/pipeline/{run_id}</code></td><td>轮询状态 / 阶段 / 事件 / 产物</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/skills</code></td><td>Skill 列表（SkillManager 优先，否则只读扫描）</td></tr>
+                  <tr><td><span class="method post">POST</span></td><td><code>/api/skills/install-dsh</code></td><td>安装技能到 ~/.dsh/skills</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/api/artifacts</code></td><td>项目产物 / demo fixtures 清单</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/figures/{path}</code></td><td>项目内图片（防目录穿越）</td></tr>
+                  <tr><td><span class="method get">GET</span></td><td><code>/files/{path}</code></td><td>项目内任意产物文件（防目录穿越）</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="about-grid">
+            <div class="panel">
+              <div class="panel-head"><h2>安全边界</h2></div>
+              <ul class="checks">
+                <li>仅监听回环地址 <code>127.0.0.1</code>，默认 <code>8765</code> 端口</li>
+                <li><code>/files</code>、<code>/figures</code> resolve 后校验必须位于项目根内，拒绝 <code>..</code> 与绝对路径</li>
+                <li>服务器输出剔除密码、密钥与环境变量值；<code>identity_file</code> 仅展示路径</li>
+                <li>LLM API key 只从环境变量 / <code>~/.sciforge/config.toml</code> 读取，不写入项目目录、不回传浏览器</li>
+                <li>响应带 CSP / nosniff / Referrer-Policy 头；无第三方 CDN 请求</li>
+              </ul>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>离线 Demo Fixtures</h2><span class="badge badge-ghost">examples/demo</span></div>
+              <ul class="checks" id="about-fixtures">
+                <li><code>arxiv_search.json</code> — 8 篇真实 arXiv 元数据</li>
+                <li><code>daily_arxiv.jsonl</code> — daily-arXiv-ai-enhanced 格式 3 行</li>
+                <li><code>paper.pdf</code> / <code>paper.txt</code> — 含章节的示例论文</li>
+                <li><code>arch_spec.yaml</code> / <code>plot_spec.yaml</code> — 配图 DSL</li>
+                <li><code>results/metrics.json</code> — 实验结果与消融</li>
+              </ul>
+              <p class="muted">演示路径：文献搜索 → 加入库 → 精读 → 创新点 → pipeline 运行 → 图表产物 → 论文草稿。</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="内容预览">
+    <div class="modal-card">
+      <header class="modal-head">
+        <strong id="modal-title">预览</strong>
+        <button id="modal-close" class="icon-btn" type="button" aria-label="关闭">✕</button>
+      </header>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

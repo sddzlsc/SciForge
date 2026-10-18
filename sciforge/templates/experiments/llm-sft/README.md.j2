@@ -1,0 +1,44 @@
+# {{ name }}
+
+由 SciForge `sciforge exp scaffold --template llm-sft` 生成。
+
+| 项目 | 值 |
+| --- | --- |
+| 数据 | `{{ dataset }}` |
+| 基座模型 | `{{ model }}` |
+| 微调方式 | LoRA（peft，可选全参） |
+
+## 1. 离线自检（CPU，不下载模型）
+
+```bash
+bash scripts/smoke.sh       # SMOKE OK，写 outputs/smoke/metrics.json
+```
+
+## 2. 真实 SFT
+
+```bash
+pip install -r requirements.txt     # 含 torch/transformers/peft/datasets
+bash scripts/run.sh
+python -m src.train --config configs/default.yaml --output-dir outputs/sft1
+```
+
+数据格式（JSONL，每行一条）::
+
+```json
+{"messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
+```
+
+也兼容 `{"instruction": "...", "input": "...", "output": "..."}`（alpaca 风格，代码里会转换）。
+
+## 3. 显存不够时
+
+- `configs/default.yaml` 里 `quantization.load_in_4bit: true`（需 bitsandbytes，CUDA）
+- 调小 `train.batch_size` / `data.max_length`，调大 `train.gradient_accumulation_steps`
+- LoRA 默认只训练 attention 投影层（`model.lora_target_modules`）
+
+## 4. 远端启动 / 结果汇总
+
+```bash
+sciforge exp launch --server gpu1 --script scripts/run.sh --name {{ name }}
+sciforge exp results <run_id>
+```

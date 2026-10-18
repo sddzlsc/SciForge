@@ -1,0 +1,5 @@
+name: nlp-finetune
+description: NLP 文本分类微调骨架（HuggingFace Trainer 风格，依赖可选；离线 smoke 不依赖 transformers）
+default_dataset: glue-sst2
+default_model: distilbert-base-uncased
+tags: [nlp, classification, huggingface]

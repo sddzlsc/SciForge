@@ -1,0 +1,219 @@
+{
+  "version": "0.1.0",
+  "updated_at": "2026-10-18",
+  "description": "SciForge 外部科研 Skill 生态目录。verified=true 表示仓库地址已核实存在；具体子路径以仓库当前结构为准。安装：sciforge skills install <条目名> --catalog（大仓库需 --name 指定 skill）。",
+  "skills": [
+    {
+      "name": "k-dense-scientific-agent-skills",
+      "aliases": ["k-dense", "k-dense-ai", "scientific-agent-skills"],
+      "url": "https://github.com/K-Dense-AI/scientific-agent-skills",
+      "description": "K-Dense AI 的 177 个科学计算 Agent Skill，覆盖生物信息、化学/药物、天文物理、机器学习与科研写作，附大量可复用脚本与参考文档。",
+      "tags": ["science", "bioinformatics", "chemistry", "machine-learning", "writing"],
+      "how_to_install": "sciforge skills install k-dense-scientific-agent-skills --catalog --name <skill>（仓库含 177 个 skill，必须指定 name）",
+      "license": "MIT",
+      "verified": true,
+      "skill_count": 177,
+      "notes": "热门 skill：literature-review、scientific-writing、scientific-visualization、statistical-analysis、transformers、scikit-learn。"
+    },
+    {
+      "name": "awesome-scientific-skills",
+      "aliases": ["awesome-scientific", "internscience"],
+      "url": "https://github.com/InternScience/Awesome-Scientific-Skills",
+      "description": "InternScience 维护的科研 Agent Skill 精选集合，按学科与来源组织，收录 30 个生态仓库、近 4000 个 skill 的质量评测（skill-metric）结果。",
+      "tags": ["science", "curated", "meta", "evaluation"],
+      "how_to_install": "sciforge skills install awesome-scientific-skills --catalog --name <skill>（集合仓库需指定 skill）",
+      "license": "MIT",
+      "verified": true,
+      "skill_count": 30,
+      "notes": "其 skills-metric/ 目录包含技能质量评分规范，本仓库 lint 规则参考该规范实现。"
+    },
+    {
+      "name": "ai-research-skills",
+      "aliases": ["orchestra-research", "orchestra", "ai-research-skill"],
+      "url": "https://github.com/orchestra-research/AI-research-SKILLs",
+      "description": "Orchestra Research 的 98 个 AI 科研 Skill（23 类），含 0-autoresearch 双循环编排、研究创意、ML 论文写作、分布式训练、评测、后训练等全流程能力。",
+      "tags": ["research", "ideation", "writing", "distributed-training", "evaluation"],
+      "how_to_install": "sciforge skills install ai-research-skills --catalog --name <skill>（如 autoresearch、brainstorming-research-ideas、ml-paper-writing）",
+      "license": "MIT",
+      "verified": true,
+      "skill_count": 98,
+      "notes": "本仓库 autoresearch-loop / research-ideation / ml-paper-writing / academic-plotting / distributed-training 五个 skill 融合改写了该项目的思路，并适配 SciForge 工具链。"
+    },
+    {
+      "name": "anthropics-skills",
+      "aliases": ["anthropic", "anthropics"],
+      "url": "https://github.com/anthropics/skills",
+      "description": "Anthropic 官方 Agent Skills 示例与规范实现，是 SKILL.md frontmatter + 渐进披露格式的事实标准来源。",
+      "tags": ["official", "meta", "reference"],
+      "how_to_install": "sciforge skills install anthropics-skills --catalog --name <skill>",
+      "license": "MIT",
+      "verified": true,
+      "notes": "适合作为编写新 skill 的格式参考。"
+    },
+    {
+      "name": "huggingface-skills",
+      "aliases": ["hf-skills", "huggingface"],
+      "url": "https://github.com/huggingface/skills",
+      "description": "Hugging Face 的 Agent Skills 集合，覆盖模型/数据集/推理/训练生态与 HF Hub 工作流。",
+      "tags": ["huggingface", "model", "dataset", "reference"],
+      "how_to_install": "sciforge skills install huggingface-skills --catalog --name <skill>",
+      "license": "Apache-2.0",
+      "verified": true,
+      "notes": "具体 license 以仓库 LICENSE 为准。"
+    },
+    {
+      "name": "daily-arxiv-ai-enhanced",
+      "aliases": ["daily-arxiv", "daily_arxiv"],
+      "url": "https://github.com/dw-dengwei/daily-arXiv-ai-enhanced",
+      "description": "每日 arXiv 论文 AI 增强中文摘要数据源，提供 SKILL 与 scripts/fetch.sh，按类别/作者/关键词获取当日论文 JSON。",
+      "tags": ["literature", "daily", "arxiv"],
+      "how_to_install": "sciforge skills install daily-arxiv-ai-enhanced --catalog",
+      "license": "MIT",
+      "verified": true,
+      "notes": "SciForge lit_daily 工具直接消费该项目的 data/*_AI_enhanced_Chinese.jsonl。"
+    },
+    {
+      "name": "instsci",
+      "aliases": ["paper-retrieval", "institutional-access"],
+      "url": "https://github.com/Rimagination/instsci",
+      "description": "Rimagination 的论文获取工具：OA 全文优先 + 机构访问（Shibboleth/OpenAthens/CARSI/WebVPN）+ 出版社能力矩阵 + 批量 DOI 下载 + MCP。",
+      "tags": ["literature", "paper-retrieval", "mcp"],
+      "how_to_install": "pip install git+https://github.com/Rimagination/instsci；或 sciforge skills install instsci --catalog",
+      "license": "MIT",
+      "verified": true,
+      "notes": "需要可见浏览器（CloakBrowser）与机构账号；SciForge paper-retrieval-oa skill 融合了其 OA 优先思路。"
+    },
+    {
+      "name": "scansci-pdf",
+      "aliases": ["scansci"],
+      "url": "https://github.com/Rimagination/scansci-pdf",
+      "description": "ScanSci PDF：高校 WebVPN、Elsevier API、批量下载、引文导出（BibTeX/RIS/EndNote）与 MCP 服务模式的论文获取工具。",
+      "tags": ["literature", "paper-retrieval", "mcp"],
+      "how_to_install": "sciforge skills install scansci-pdf --catalog；或按仓库 README 安装其 MCP 服务",
+      "license": "Apache-2.0",
+      "verified": true
+    },
+    {
+      "name": "scansci-svg",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的 SVG 图形生成 skill：把方法/流程描述转成可编辑矢量示意图。",
+      "tags": ["figure", "svg", "diagram"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name scansci-svg（子路径以仓库当前结构为准）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "属于 Rimagination/ScanSci 系列（scansci.com 目录），位于 scansci-pi 内置 skills 中；SciForge 自带的 paper-figures-architecture 覆盖同类需求。"
+    },
+    {
+      "name": "easyplot",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的科研数据绘图 skill：自然语言描述 → matplotlib 出版级图表。",
+      "tags": ["figure", "plot", "matplotlib"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name easyplot（子路径以仓库当前结构为准）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "Rimagination/ScanSci 系列；SciForge 自带 figure_plot + paper-figures-results 覆盖同类需求。"
+    },
+    {
+      "name": "easymd",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的 Markdown/文档生成 skill：把研究材料整理成结构化 Markdown 报告。",
+      "tags": ["writing", "markdown"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name easymd（子路径以仓库当前结构为准）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "Rimagination/ScanSci 系列。"
+    },
+    {
+      "name": "easyslides",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的学术幻灯片 skill：从论文/材料生成 PPTX 或 HTML slides，支持模板与答辩场景。",
+      "tags": ["writing", "slides", "venue"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name easyslides（子路径以仓库当前结构为准）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "对应 scansci-harness 的学术幻灯片能力；SciForge 自带 slide-talk 提供讲稿与结构方法论。"
+    },
+    {
+      "name": "good-question",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的研究问题打磨 skill：把模糊兴趣收敛为可验证的科研问题。",
+      "tags": ["ideation", "research-question"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name good-question（子路径以仓库当前结构为准）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "与 SciForge research-ideation / innovation-mining 互补。"
+    },
+    {
+      "name": "good-story",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的论文叙事 skill：把实验结果组织成有说服力的研究故事线。",
+      "tags": ["writing", "storytelling"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name good-story（子路径以仓库当前结构为准）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "与 SciForge ml-paper-writing / paper-writing 互补。"
+    },
+    {
+      "name": "easymeta",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的元分析/文献综合 skill：多篇论文的合并统计与证据汇总。",
+      "tags": ["literature", "meta-analysis"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name easymeta（子路径以仓库当前结构为准）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "Rimagination/ScanSci 系列。"
+    },
+    {
+      "name": "chuan-check",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的论文/材料检查 skill：事实、引用与一致性核查。",
+      "tags": ["review", "fact-check"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name chuan-check（子路径以仓库当前结构为准）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "与 SciForge paper_review / idea-novelty-check 互补。"
+    },
+    {
+      "name": "mineru-go",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的文档解析 skill：基于 MinerU 的 PDF→Markdown/结构化抽取（公式、表格、版式）。",
+      "tags": ["literature", "pdf", "parsing"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name mineru-go（子路径以仓库当前结构为准；底层依赖 MinerU）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "需要本地安装 MinerU 服务；SciForge paper_read 的 PDF 解析可作降级方案。"
+    },
+    {
+      "name": "thu-digitizer",
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "ScanSci 生态的图表数字化 skill：从论文图片中提取曲线/数据点，用于复现对比或标注。",
+      "tags": ["figure", "data-extraction"],
+      "how_to_install": "sciforge skills install https://github.com/Rimagination/scansci-pi --name thu-digitizer（子路径以仓库当前结构为准）",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "Rimagination/ScanSci 系列。"
+    },
+    {
+      "name": "scansci-pi",
+      "aliases": ["rimagination-scansci", "scansci"],
+      "url": "https://github.com/Rimagination/scansci-pi",
+      "description": "Rimagination 的 ScanSci Pi 科研智能体与内置 skill 集合，包含 scientific-brainstorming、scientific-slides 等科研能力。",
+      "tags": ["science", "agent", "collection"],
+      "how_to_install": "sciforge skills install scansci-pi --catalog --name <skill>",
+      "license": "见仓库 LICENSE",
+      "verified": true,
+      "notes": "scansci.com 生态的主仓库之一。"
+    },
+    {
+      "name": "huggingface-ml-intern",
+      "aliases": ["ml-intern"],
+      "url": "https://github.com/huggingface/ml-intern",
+      "description": "Hugging Face ML Intern：面向 ML 科研的开源智能体实现（工具编排、实验追踪、HF 生态集成），可作为 SciForge agent 设计的参考。",
+      "tags": ["reference", "agent", "machine-learning"],
+      "how_to_install": "git clone https://github.com/huggingface/ml-intern（参考实现，非标准 skill 目录，不通过 skills install）",
+      "license": "Apache-2.0",
+      "verified": true,
+      "notes": "参考实现；如需安装请按仓库 README。"
+    }
+  ]
+}

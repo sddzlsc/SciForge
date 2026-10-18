@@ -1,0 +1,40 @@
+# {{ name }}
+
+由 SciForge `sciforge exp scaffold --template generic` 生成。
+
+| 项目 | 值 |
+| --- | --- |
+| 数据 | `{{ dataset }}` |
+| 模型 | `{{ model }}` |
+
+适合作为**任意深度学习实验的起点**：把 `src/data.py` / `src/model.py` 换成你自己的实现，
+`src/train.py` 里负责训练循环、指标落盘（metrics.json）与 checkpoint，`exp_results` 可直接消费。
+
+## 1. 离线自检（CPU，无需数据）
+
+```bash
+bash scripts/smoke.sh        # 输出 SMOKE OK，写 outputs/smoke/metrics.json
+```
+
+## 2. 真实训练
+
+```bash
+pip install -r requirements.txt
+bash scripts/run.sh
+python -m src.train --config configs/default.yaml --output-dir outputs/exp1 --epochs 20
+```
+
+## 3. 远端启动
+
+```bash
+sciforge exp launch --server gpu1 --script scripts/run.sh --name {{ name }}
+sciforge exp results <run_id>
+```
+
+远端会注入 `SCIFORGE_RUN_DIR=runs/<run_id>`，`scripts/run.sh` 已读取。
+
+## 4. 扩展点
+
+- `src/data.py: build_arrays(cfg)` → 返回 `(X_train, y_train, X_val, y_val)`
+- `src/model.py: build_model(cfg)` → 任意实现 `predict(X)` / `fit(X, y)` 的对象
+- `src/train.py: run_train()` → 训练循环；务必把每个 epoch 的指标写入 metrics.json 的 `epochs` 数组

@@ -1,0 +1,5 @@
+name: generic
+description: 通用实验骨架（任意表格/回归任务，numpy 训练循环 + 指标落盘）
+default_dataset: synthetic-regression
+default_model: linear
+tags: [generic, baseline, numpy]

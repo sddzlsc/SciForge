@@ -1,0 +1,23 @@
+# {{ name }} 实验配置（纯 YAML）
+project: {{ name }}
+seed: 42
+
+data:
+  name: {{ dataset }}     # synthetic-regression | csv
+  csv_path: ./data/train.csv
+  n_samples: 512
+  n_features: 8
+  noise: 0.1
+
+model:
+  name: {{ model }}       # linear | mlp
+  hidden_dim: 16
+
+train:
+  epochs: 50
+  batch_size: 64
+  lr: 0.05
+  l2: 0.0001
+
+output:
+  dir: outputs

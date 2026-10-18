@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="563.21pt" height="289.52pt"
+     viewBox="0 0 563.21 289.52" role="img">
+  <title>ATR-VDiT: Adaptive Token Routing for Efficient Video Diffusion Transformers</title>
+  <desc>ATR-VDiT: Adaptive Token Routing for Efficient Video Diffusion Transformers（由 SciForge figures.arch 生成）</desc>
+  <defs>
+      <marker id="arrow-3B4652" viewBox="0 0 10 10" refX="9.4" refY="5" markerWidth="5.2" markerHeight="5.2" orient="auto-start-reverse"><path d="M 0.8 1 L 9.4 5 L 0.8 9 Z" fill="#3B4652"/></marker>
+  </defs>
+  <rect x="0" y="0" width="563.21" height="289.52" fill="#FFFFFF"/>
+  <g font-family="Helvetica Neue, Helvetica, Arial, Noto Sans CJK SC, sans-serif"
+     text-rendering="optimizeLegibility" shape-rendering="geometricPrecision">
+    <text x="281.61" y="21.5" font-size="9.5" fill="#1B1B1B" text-anchor="middle" font-weight="600">ATR-VDiT: Adaptive Token Routing for Efficient Video Diffusion Transformers</text>
+    <g transform="translate(21 52.33)">
+    <rect x="-9" y="-9" width="104" height="153.9" rx="8" fill="#F6F8FA" stroke="#AEB9C6" stroke-width="0.8" stroke-dasharray="3.2 2.2"/>
+    <rect x="-4" y="-16.8" width="87.69" height="10" rx="2.5" fill="#FFFFFF"/>
+    <text x="0.5" y="-8.6" font-size="7.2" fill="#4A5563" text-anchor="start" font-weight="600">Input &amp; Tokenization</text>
+    <rect x="111" y="-9" width="123.85" height="102.6" rx="8" fill="#F6F8FA" stroke="#AEB9C6" stroke-width="0.8" stroke-dasharray="3.2 2.2"/>
+    <rect x="116" y="-16.8" width="75.02" height="10" rx="2.5" fill="#FFFFFF"/>
+    <text x="120.5" y="-8.6" font-size="7.2" fill="#4A5563" text-anchor="start" font-weight="600">Adaptive Compute</text>
+    <rect x="250.85" y="-9" width="122.1" height="102.6" rx="8" fill="#F6F8FA" stroke="#AEB9C6" stroke-width="0.8" stroke-dasharray="3.2 2.2"/>
+    <rect x="255.85" y="-16.8" width="93.49" height="10" rx="2.5" fill="#FFFFFF"/>
+    <text x="260.35" y="-8.6" font-size="7.2" fill="#4A5563" text-anchor="start" font-weight="600">Diffusion Transformer</text>
+    <rect x="388.95" y="-9" width="104" height="215.2" rx="8" fill="#F6F8FA" stroke="#AEB9C6" stroke-width="0.8" stroke-dasharray="3.2 2.2"/>
+    <rect x="393.95" y="-16.8" width="89.98" height="10" rx="2.5" fill="#FFFFFF"/>
+    <text x="398.45" y="-8.6" font-size="7.2" fill="#4A5563" text-anchor="start" font-weight="600">Prediction &amp; Decoding</text>
+    <path d="M 43 33.3 L 43 53.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 43 86.6 L 43 106.6" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 84.56 121.25 L 98.28 121.25 Q 102.28 121.25 102.28 117.25 L 102.28 20.65 Q 102.28 16.65 106.28 16.65 L 120 16.65" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 172.92 33.3 L 172.93 55.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 43 135.9 L 43 162.9 Q 43 166.9 47 166.9 L 304.4 166.9 Q 308.4 166.9 308.4 162.9 L 308.4 33.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3.2 2.4" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 211.17 69.95 L 231.51 69.95 Q 235.51 69.95 235.51 65.95 L 235.51 20.65 Q 235.51 16.65 239.51 16.65 L 259.85 16.65" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 315.4 33.3 L 315.4 55.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 354.58 69.95 L 372.27 69.95 Q 376.27 69.95 376.27 65.95 L 376.27 20.65 Q 376.27 16.65 380.27 16.65 L 397.95 16.65" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 440.95 33.3 L 440.95 53.3" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 483.95 16.65 L 510.95 16.65 Q 514.95 16.65 514.95 20.65 L 514.95 117.25 Q 514.95 121.25 510.95 121.25 L 479.61 121.25" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <path d="M 440.95 132.79 L 440.95 163.9" fill="none" stroke="#3B4652" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-3B4652)"/>
+    <rect x="4" y="0" width="78" height="33.3" rx="16.65" fill="#E3F2EB" stroke="#009E73" stroke-width="0.9"/>
+    <text x="43" y="14.44" font-size="8" fill="#0B4D3A" text-anchor="middle" font-weight="600">Video Clip</text>
+    <text x="43" y="24.27" font-size="7" fill="#444C56" text-anchor="middle">8×256×256×3</text>
+    <rect x="0" y="53.3" width="86" height="33.3" rx="5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.9"/>
+    <text x="43" y="67.74" font-size="8" fill="#123A57" text-anchor="middle" font-weight="600">3D VAE</text>
+    <text x="43" y="77.57" font-size="7" fill="#444C56" text-anchor="middle">latent 4×32×32×32</text>
+    <rect x="1.43" y="106.6" width="83.13" height="29.3" rx="5" fill="#FFFFFF" stroke="#4B5563" stroke-width="0.9"/>
+    <text x="43" y="119.04" font-size="8" fill="#1B1B1B" text-anchor="middle" font-weight="600">3D Patchify</text>
+    <text x="43" y="128.87" font-size="7" fill="#444C56" text-anchor="middle">2048 tokens × 384-d</text>
+    <rect x="120" y="0" width="105.85" height="33.3" rx="5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.9"/>
+    <text x="172.92" y="14.44" font-size="8" fill="#123A57" text-anchor="middle" font-weight="600">Adaptive Token Router</text>
+    <text x="172.92" y="24.27" font-size="7" fill="#444C56" text-anchor="middle">lightweight MLP + Gumbel</text>
+    <rect x="134.69" y="55.3" width="76.48" height="29.3" rx="5" fill="#FFFFFF" stroke="#4B5563" stroke-width="0.9"/>
+    <text x="172.93" y="67.74" font-size="8" fill="#1B1B1B" text-anchor="middle" font-weight="600">Top-k Selection</text>
+    <text x="172.93" y="77.57" font-size="7" fill="#444C56" text-anchor="middle">k = 40% – 90%</text>
+    <rect x="259.85" y="0" width="104.1" height="33.3" rx="5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.9"/>
+    <text x="311.9" y="14.44" font-size="8" fill="#123A57" text-anchor="middle" font-weight="600">DiT Blocks × 12</text>
+    <text x="311.9" y="24.27" font-size="7" fill="#444C56" text-anchor="middle">window + global attention</text>
+    <rect x="269.21" y="55.3" width="85.37" height="29.3" rx="5" fill="#FFFFFF" stroke="#4B5563" stroke-width="0.9"/>
+    <text x="311.9" y="67.74" font-size="8" fill="#1B1B1B" text-anchor="middle" font-weight="600">Token Merge</text>
+    <text x="311.9" y="77.57" font-size="7" fill="#444C56" text-anchor="middle">unselected → nearest</text>
+    <rect x="397.95" y="0" width="86" height="33.3" rx="5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.9"/>
+    <text x="440.95" y="14.44" font-size="8" fill="#123A57" text-anchor="middle" font-weight="600">Denoising Head</text>
+    <text x="440.95" y="24.27" font-size="7" fill="#444C56" text-anchor="middle">predict ε</text>
+    <rect x="402.95" y="53.3" width="76" height="33.3" rx="5" fill="#FBEDE4" stroke="#D55E00" stroke-width="0.9"/>
+    <text x="440.95" y="67.74" font-size="8" fill="#6B2C0B" text-anchor="middle" font-weight="600">MSE Loss</text>
+    <text x="440.95" y="77.57" font-size="7" fill="#444C56" text-anchor="middle">ε-prediction</text>
+    <rect x="402.29" y="109.71" width="77.32" height="23.08" rx="3" fill="#E8EDF3" stroke="#7E8C9D" stroke-width="0.9"/>
+    <rect x="402.29" y="109.71" width="2.6" height="23.08" rx="1.3" fill="#7E8C9D" opacity="0.75"/>
+    <text x="440.95" y="118.72" font-size="7" fill="#2E3A47" text-anchor="middle" font-weight="normal">Predicted x̂₀</text>
+    <text x="440.95" y="128.26" font-size="7" fill="#444C56" text-anchor="middle">latent 4×32×32×32</text>
+    <rect x="397.95" y="163.9" width="86" height="33.3" rx="5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.9"/>
+    <text x="440.95" y="178.34" font-size="8" fill="#123A57" text-anchor="middle" font-weight="600">3D VAE Decode</text>
+    <text x="440.95" y="188.17" font-size="7" fill="#444C56" text-anchor="middle">8×256×256×3</text>
+    
+    
+    <rect x="87.45" y="94.26" width="29.67" height="11" rx="2.5" fill="#FFFFFF" opacity="0.97"/>
+    <text x="102.28" y="102.16" font-size="6.5" fill="#444C56" text-anchor="middle">tokens</text>
+    <rect x="150.88" y="38.8" width="44.1" height="11" rx="2.5" fill="#FFFFFF" opacity="0.97"/>
+    <text x="172.93" y="46.7" font-size="6.5" fill="#444C56" text-anchor="middle">importance</text>
+    <rect x="207.52" y="161.4" width="38.97" height="11" rx="2.5" fill="#FFFFFF" opacity="0.97"/>
+    <text x="227" y="169.3" font-size="6.5" fill="#444C56" text-anchor="middle">all tokens</text>
+    <rect x="193.08" y="-20.5" width="48.84" height="11" rx="2.5" fill="#FFFFFF" opacity="0.97"/>
+    <text x="217.51" y="-12.6" font-size="6.5" fill="#444C56" text-anchor="middle">top-k tokens</text>
+    <rect x="289.25" y="38.8" width="52.29" height="11" rx="2.5" fill="#FFFFFF" opacity="0.97"/>
+    <text x="315.4" y="46.7" font-size="6.5" fill="#444C56" text-anchor="middle">sparse tokens</text>
+    
+    <rect x="434.73" y="37.8" width="12.45" height="11" rx="2.5" fill="#FFFFFF" opacity="0.97"/>
+    <text x="440.95" y="45.7" font-size="6.5" fill="#444C56" text-anchor="middle">ε</text>
+    <rect x="510.68" y="63.45" width="19.53" height="11" rx="2.5" fill="#FFFFFF" opacity="0.97"/>
+    <text x="520.45" y="71.35" font-size="6.5" fill="#444C56" text-anchor="middle">x̂₀</text>
+    
+    </g>
+    
+    <rect x="145.9" y="267.52" width="13" height="9" rx="2.5" fill="#E3F2EB" stroke="#009E73" stroke-width="0.8"/>
+    <text x="162.9" y="274.12" font-size="6.5" fill="#444C56">Input / Output</text>
+    <rect x="222.11" y="267.52" width="13" height="9" rx="2.5" fill="#E4EFF8" stroke="#0072B2" stroke-width="0.8"/>
+    <text x="239.11" y="274.12" font-size="6.5" fill="#444C56">Module</text>
+    <rect x="273.43" y="267.52" width="13" height="9" rx="2.5" fill="#FFFFFF" stroke="#4B5563" stroke-width="0.8"/>
+    <text x="290.43" y="274.12" font-size="6.5" fill="#444C56">Operation</text>
+    <rect x="333.92" y="267.52" width="13" height="9" rx="2.5" fill="#FBEDE4" stroke="#D55E00" stroke-width="0.8"/>
+    <text x="350.92" y="274.12" font-size="6.5" fill="#444C56">Loss</text>
+    <rect x="378.67" y="267.52" width="13" height="9" rx="2.5" fill="#E8EDF3" stroke="#7E8C9D" stroke-width="0.8"/>
+    <text x="395.67" y="274.12" font-size="6.5" fill="#444C56">Tensor</text>
+  </g>
+</svg>

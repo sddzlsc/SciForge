@@ -1,0 +1,64 @@
+# {{ name }}
+
+由 SciForge `sciforge exp scaffold --template cv-classification` 生成。
+
+| 项目 | 值 |
+| --- | --- |
+| 数据集 | `{{ dataset }}` |
+| 模型 | `{{ model }}` |
+| 设备 | CPU 可跑（`--smoke`）/ CUDA / Apple MPS |
+
+## 1. 30 秒环境自检（CPU、无需下载数据）
+
+```bash
+bash scripts/smoke.sh
+```
+
+输出 `SMOKE OK` 并在 `outputs/smoke/metrics.json` 写入训练曲线；用于验证 Python 环境与
+SciForge 实验链路，不依赖 torch / 数据集。
+
+## 2. 真实训练
+
+```bash
+pip install -r requirements.txt
+bash scripts/run.sh                       # 读取 configs/default.yaml
+bash scripts/run.sh --epochs 3            # 覆盖任意 config 字段
+python -m src.train --config configs/default.yaml --output-dir outputs/exp1
+```
+
+训练过程会在 `--output-dir`（默认 `outputs/<时间戳>`）下写：
+
+- `metrics.json`：每个 epoch 的 loss/acc，供 `sciforge exp results` 生成三线表 + 曲线数据
+- `checkpoint.pt`：最佳模型权重
+- `stdout.log`：远端启动时由 SciForge 重定向
+
+## 3. 提交到 GPU 服务器
+
+```bash
+sciforge exp launch --server gpu1 --script scripts/run.sh --name {{ name }}
+sciforge exp status            # 查看 run.json 与远端存活状态
+sciforge exp logs <run_id>     # tail 训练日志
+sciforge exp results <run_id>  # 汇总 metrics.json → 三线表
+```
+
+远端启动时 SciForge 会注入 `SCIFORGE_RUN_DIR=runs/<run_id>`，`scripts/run.sh` 已读取该变量，
+因此远端 metrics 会落在 `runs/<run_id>/metrics.json`，无需手工拷贝。
+
+## 4. 目录结构
+
+```
+├── configs/default.yaml   超参与数据/模型配置（纯 YAML，无 pydantic 依赖）
+├── src/data.py            数据加载（torchvision CIFAR / ImageFolder / 随机张量）
+├── src/model.py           模型工厂（resnet18/34/50、smallcnn）
+├── src/train.py           训练入口（--smoke 为离线自检）
+├── src/evaluate.py        评估入口（加载 checkpoint 输出 eval.json）
+├── scripts/run.sh         训练启动脚本
+└── scripts/smoke.sh       CPU 离线自检
+```
+
+## 5. 常见问题
+
+- **下载 CIFAR-10 失败**：把 `configs/default.yaml` 的 `data.root` 指向已有数据目录，或设
+  `data.synthetic: true` 用随机张量调试。
+- **OOM**：调小 `train.batch_size`；`train.amp: true` 需要 CUDA。
+- **MPS**：`device: mps` 可跑通，但 AMP 会自动关闭。

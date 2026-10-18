@@ -1,0 +1,48 @@
+# {{ name }}
+
+由 SciForge `sciforge exp scaffold --template nlp-finetune` 生成。
+
+| 项目 | 值 |
+| --- | --- |
+| 数据集 | `{{ dataset }}` |
+| 预训练模型 | `{{ model }}` |
+
+## 1. 离线自检（CPU，不下载模型/数据）
+
+```bash
+bash scripts/smoke.sh      # 输出 SMOKE OK，写 outputs/smoke/metrics.json
+```
+
+`--smoke` 用纯标准库模拟 tokenize + 分类训练，验证实验链路；**不会** import transformers。
+
+## 2. 真实微调
+
+```bash
+pip install -r requirements.txt
+bash scripts/run.sh
+# 或自定义
+python -m src.train --config configs/default.yaml --output-dir outputs/exp1 --epochs 3
+```
+
+依赖 HuggingFace `transformers` / `datasets` / `accelerate`。数据默认用 `datasets.load_dataset`
+加载（`configs/default.yaml` 的 `data.name`），也可用本地 JSONL：
+
+```yaml
+data:
+  name: local-jsonl
+  train_file: ./data/train.jsonl   # {"text": "...", "label": 0}
+  val_file: ./data/val.jsonl
+```
+
+## 3. 远端启动
+
+```bash
+sciforge exp launch --server gpu1 --script scripts/run.sh --name {{ name }}
+sciforge exp results <run_id>
+```
+
+远端注入 `SCIFORGE_RUN_DIR=runs/<run_id>`，metrics 会被 `exp_results` 自动收集。
+
+## 4. 换成 LLM 指令微调？
+
+见同系列 `llm-sft` 模板。

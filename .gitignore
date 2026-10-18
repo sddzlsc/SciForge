@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# SciForge runtime data
+.sciforge/
+*.log
+*.tmp
+
+# Local artifacts
+runs/
+.papers/
+paper.pdf
+
+# OS
+.DS_Store
+
+# User secrets
+.env
+config.local.toml

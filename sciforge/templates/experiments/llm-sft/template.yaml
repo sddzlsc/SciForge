@@ -1,0 +1,5 @@
+name: llm-sft
+description: 大模型指令微调骨架（transformers + peft LoRA，可选依赖；离线 smoke 不依赖 torch）
+default_dataset: alpaca-style-jsonl
+default_model: Qwen/Qwen2.5-0.5B-Instruct
+tags: [llm, sft, lora, peft]

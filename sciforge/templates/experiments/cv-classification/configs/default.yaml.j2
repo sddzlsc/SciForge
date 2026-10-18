@@ -1,0 +1,30 @@
+# {{ name }} 训练配置（纯 YAML，train.py 用 pyyaml 读取，无 pydantic）
+project: {{ name }}
+seed: 42
+device: auto            # auto | cpu | cuda | mps
+
+data:
+  name: {{ dataset }}     # cifar10 | cifar100 | imagefolder
+  root: ./data
+  num_classes: 10
+  image_size: 32
+  num_workers: 4
+  synthetic: false        # true：随机张量，不下载数据
+
+model:
+  name: {{ model }}       # resnet18 | resnet34 | resnet50 | smallcnn
+  pretrained: false
+  dropout: 0.0
+
+train:
+  epochs: 100
+  batch_size: 128
+  lr: 0.001
+  weight_decay: 0.0005
+  optimizer: adamw        # adamw | sgd
+  scheduler: cosine       # cosine | step | none
+  amp: true
+
+output:
+  dir: outputs
+  save_every: 10

@@ -1,0 +1,37 @@
+# {{ name }} LLM SFT 配置（纯 YAML）
+project: {{ name }}
+seed: 42
+device: auto
+
+data:
+  name: {{ dataset }}          # alpaca-style-jsonl | local-jsonl
+  train_file: ./data/train.jsonl
+  val_file: ./data/val.jsonl
+  max_length: 1024
+  val_ratio: 0.02
+
+model:
+  name: {{ model }}
+  trust_remote_code: false
+  lora: true
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  lora_target_modules: [q_proj, k_proj, v_proj, o_proj]
+
+quantization:
+  load_in_4bit: false
+  bnb_4bit_compute_dtype: bfloat16
+
+train:
+  epochs: 3
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  lr: 0.0002
+  weight_decay: 0.0
+  warmup_ratio: 0.03
+  logging_steps: 10
+  save_steps: 200
+
+output:
+  dir: outputs

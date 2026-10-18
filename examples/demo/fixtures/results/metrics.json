@@ -1,0 +1,68 @@
+{
+  "project": "ATR-VDiT — Adaptive Token Routing for Efficient Video Diffusion Transformers",
+  "generated_at": "2026-10-18T18:50:00+08:00",
+  "note": "SciForge 离线 demo 实验结果。数值为 demo 用途（与 paper.pdf / plot_spec.yaml 一致），不是真实论文数据。",
+  "task": "class-conditional video generation",
+  "dataset": {
+    "name": "UCF-101",
+    "resolution": "256x256",
+    "frames": 16,
+    "fps": 8,
+    "train_videos": 9537,
+    "test_videos": 3793
+  },
+  "metrics": {
+    "primary": "FVD",
+    "primary_direction": "lower_is_better",
+    "secondary": ["IS", "VBench-Total", "Throughput(iter/s)", "Train GPU-hours"]
+  },
+  "main_results": [
+    {"method": "Video Diffusion (U-Net)", "venue": "NeurIPS 2022", "fvd": 252.1, "fvd_std": 8.2, "is": 66.4, "vbench": 78.9, "throughput": 3.41, "train_gpu_hours": 1180},
+    {"method": "Latte-XL (VDiT)", "venue": "2024", "fvd": 244.0, "fvd_std": 7.6, "is": 68.7, "vbench": 80.4, "throughput": 4.02, "train_gpu_hours": 1040},
+    {"method": "ATR-VDiT (ours)", "venue": "this work", "fvd": 236.4, "fvd_std": 7.1, "is": 70.9, "vbench": 82.1, "throughput": 4.84, "train_gpu_hours": 652},
+    {"method": "ATR-VDiT w/o router", "venue": "ablation", "fvd": 241.7, "fvd_std": 7.6, "is": 69.8, "vbench": 81.0, "throughput": 3.55, "train_gpu_hours": 915},
+    {"method": "ATR-VDiT w/o token merge", "venue": "ablation", "fvd": 249.3, "fvd_std": 8.0, "is": 67.9, "vbench": 79.6, "throughput": 4.61, "train_gpu_hours": 640}
+  ],
+  "ablations": [
+    {"variant": "Full model", "fvd": 236.4, "delta_fvd": 0.0, "throughput": 4.84},
+    {"variant": "w/o adaptive router (fixed k=90%)", "fvd": 241.7, "delta_fvd": 5.3, "throughput": 3.55},
+    {"variant": "w/o consistency regularization", "fvd": 239.2, "delta_fvd": 2.8, "throughput": 4.79},
+    {"variant": "w/o token merge", "fvd": 249.3, "delta_fvd": 12.9, "throughput": 4.61},
+    {"variant": "fixed k=40%", "fvd": 253.8, "delta_fvd": 17.4, "throughput": 5.12},
+    {"variant": "router input = first-frame only", "fvd": 243.6, "delta_fvd": 7.2, "throughput": 4.80}
+  ],
+  "router_statistics": {
+    "selected_token_ratio": {"mean": 0.638, "std": 0.121},
+    "per_layer_k": [0.90, 0.82, 0.74, 0.68, 0.62, 0.58, 0.55, 0.52, 0.50, 0.47, 0.44, 0.40],
+    "gumbel_temperature": 0.5,
+    "consistency_loss_weight": 0.05
+  },
+  "training_curves": {
+    "note": "对应 plot_spec.yaml；x 为 optimization steps（千步），y 为 FVD；3 seeds 均值±std。",
+    "steps_k": [10, 20, 40, 60, 80, 100],
+    "series": {
+      "DiT baseline": {"mean": [412.5, 322.1, 278.4, 261.7, 254.3, 252.1], "std": [22.4, 17.8, 12.6, 10.1, 8.7, 8.2]},
+      "Ours w/o router": {"mean": [405.8, 315.2, 268.9, 251.4, 244.0, 241.7], "std": [21.1, 16.4, 11.7, 9.4, 8.1, 7.6]},
+      "ATR-VDiT (ours)": {"mean": [400.2, 305.6, 258.9, 245.2, 239.6, 236.4], "std": [19.8, 15.2, 10.4, 8.8, 7.5, 7.1]}
+    }
+  },
+  "efficiency": {
+    "params_m": 458.3,
+    "flops_g_per_video": 96.5,
+    "baseline_flops_g_per_video": 241.7,
+    "flops_reduction_pct": 60.1,
+    "throughput_iter_per_sec": 4.84,
+    "baseline_throughput_iter_per_sec": 3.41,
+    "speedup": 1.42,
+    "train_gpu_hours": 652,
+    "baseline_train_gpu_hours": 1180,
+    "hardware": "8× NVIDIA A100 80GB, 100k steps, batch size 64"
+  },
+  "seeds": [17, 29, 43],
+  "tables": {
+    "table1_main": "main_results",
+    "table2_ablation": "ablations",
+    "caption_main": "Table 1: Class-conditional video generation on UCF-101. FVD ↓ / IS ↑ / VBench ↑; throughput measured on a single A100 with batch size 8.",
+    "caption_ablation": "Table 2: Ablation study. ΔFVD is relative to the full model."
+  }
+}

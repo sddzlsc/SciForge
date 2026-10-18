@@ -1,0 +1,31 @@
+# {{ name }} 微调配置（纯 YAML）
+project: {{ name }}
+seed: 42
+device: auto            # auto | cpu | cuda | mps
+
+data:
+  name: {{ dataset }}          # glue-sst2 | local-jsonl | ag-news
+  train_file: ./data/train.jsonl
+  val_file: ./data/val.jsonl
+  text_field: text
+  label_field: label
+  max_length: 128
+  num_labels: 2
+
+model:
+  name: {{ model }}            # 任意 HF 文本分类模型
+  dropout: 0.1
+
+train:
+  epochs: 3
+  batch_size: 16
+  eval_batch_size: 64
+  lr: 0.00002
+  weight_decay: 0.01
+  warmup_ratio: 0.06
+  gradient_accumulation_steps: 1
+  fp16: true
+
+output:
+  dir: outputs
+  save_strategy: epoch

@@ -111,3 +111,34 @@ def test_pipeline_records_server_and_dataset(sciforge_home: Path, project: Path)
     assert data["server"] == "gpu1" and data["dataset"] == "./data"
     manifest = (run.run_dir / "run.json").read_text(encoding="utf-8")
     assert "gpu1" in manifest and "./data" in manifest
+
+
+def test_run_control_pause_resume_stop() -> None:
+    import threading
+    import time as _time
+
+    from sciforge.pipeline.control import RunControl
+
+    control = RunControl()
+    assert control.wait_if_paused() is True
+    assert control.pause() is True
+    assert control.paused is True
+    thread = threading.Thread(target=lambda: (_time.sleep(0.1), control.resume()))
+    thread.start()
+    assert control.wait_if_paused() is True
+    thread.join()
+    assert control.paused is False
+    control.stop()
+    assert control.wait_if_paused() is False
+
+
+def test_pipeline_runner_control_methods(sciforge_home: Path, project: Path) -> None:
+    from sciforge.pipeline.engine import PipelineRunner
+
+    runner = PipelineRunner(get_settings(project), project, mock=True)
+    assert runner.pause() is True
+    assert runner.control.paused is True
+    runner.resume()
+    assert runner.control.paused is False
+    runner.stop()
+    assert runner.control.stopped is True

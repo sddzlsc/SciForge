@@ -65,6 +65,9 @@ sciforge pipeline show <run-id>
 sciforge pipeline run --recipe full --topic "..." --server gpu1 --dataset ./data
 ```
 
+也可以直接在对话页点 **🧪 流水线**：运行过程会作为聊天消息逐步展示，每个阶段可展开细节，
+支持随时暂停 / 继续 / 停止；后台运行，不阻塞聊天。
+
 ## 5. 配置 GPU 服务器（可选）
 
 ```bash

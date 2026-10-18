@@ -15,6 +15,7 @@
     mock: true,
     chat: {
       attachments: [],
+      pipelines: {},
       sessionId: null,
       streaming: false,
       controller: null,
@@ -854,6 +855,10 @@
 
   function resetChat() {
     if (state.chat.streaming) toast('请先停止当前生成', 'warn');
+    Object.values(state.chat.pipelines || {}).forEach((item) => {
+      if (item.timer) clearInterval(item.timer);
+    });
+    state.chat.pipelines = {};
     state.chat.sessionId = null;
     state.chat.streaming = false;
     state.chat.assistant = null;
@@ -953,6 +958,267 @@
     }
   }
 
+  /* ---------------------------------- 对话内科研流水线 ---------------------------------- */
+  const PIPELINE_TERMINAL = new Set(['done', 'failed', 'stopped', 'partial']);
+  const PIPELINE_STATUS_TEXT = {
+    running: '运行中', paused: '已暂停', stopping: '停止中',
+    done: '完成', failed: '失败', stopped: '已停止', partial: '部分完成',
+  };
+
+  async function openPipelineDialog() {
+    const node = el('div', 'pipe-dialog');
+    node.innerHTML = '<div class="muted">正在加载 recipe / 服务器…</div>';
+    openModal('启动科研流水线', node);
+    try {
+      const [recipeData, serverData] = await Promise.all([api('/api/recipes'), api('/api/servers')]);
+      const recipes = recipeData.recipes || [];
+      const servers = serverData.servers || [];
+      const recipeOptions = recipes.map((item) =>
+        '<option value="' + escapeHtml(item.name) + '"' + (item.name === 'full' ? ' selected' : '') + '>' +
+        escapeHtml(item.name) + ' — ' + escapeHtml(item.title || '') + '</option>'
+      ).join('') || '<option value="full">full — 全流程</option>';
+      const serverOptions = ['<option value="">自动选择</option>'].concat(servers.map((item) =>
+        '<option value="' + escapeHtml(item.name) + '">' + escapeHtml(item.name) + ' — ' + escapeHtml(item.host) + '</option>'
+      )).join('');
+      const topic = ($('#chat-input').value || '').trim();
+      node.innerHTML =
+        '<form class="pipe-dialog-form">' +
+        '<p class="muted">在对话里逐步运行完整科研流程：课题 → 文献 → 创新点 → GPU/数据 → 实验 → 配图 → 论文。每个阶段都可展开查看细节，可随时暂停/继续/停止。</p>' +
+        '<div class="run-form">' +
+        '<label class="field"><span>Recipe</span><select id="pipe-chat-recipe">' + recipeOptions + '</select></label>' +
+        '<label class="field grow"><span>研究主题</span><input id="pipe-chat-topic" value="' + escapeHtml(topic) + '" placeholder="描述你的课题，例如：扩散 Transformer 的高效注意力机制" required></label>' +
+        '<label class="field"><span>GPU 服务器</span><select id="pipe-chat-server">' + serverOptions + '</select></label>' +
+        '<label class="field"><span>数据集路径（可选）</span><input id="pipe-chat-dataset" placeholder="./data 或远端路径"></label>' +
+        '<label class="switch field-switch"><input type="checkbox" id="pipe-chat-mock"' + ($('#mock-toggle').checked ? ' checked' : '') + '><span class="switch-track"></span><span class="switch-text">Mock</span></label>' +
+        '</div>' +
+        '<div class="form-actions"><button class="btn btn-primary" type="submit">运行流水线</button>' +
+        '<button class="btn btn-ghost" type="button" id="pipe-chat-cancel">取消</button></div>' +
+        '</form>';
+      const form = node.querySelector('form');
+      node.querySelector('#pipe-chat-cancel').addEventListener('click', closeModal);
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const button = form.querySelector('button[type="submit"]');
+        button.disabled = true;
+        button.textContent = '启动中…';
+        try {
+          const data = await apiPost('/api/pipeline/run', {
+            recipe: node.querySelector('#pipe-chat-recipe').value,
+            topic: node.querySelector('#pipe-chat-topic').value.trim(),
+            server: node.querySelector('#pipe-chat-server').value || null,
+            dataset: node.querySelector('#pipe-chat-dataset').value.trim() || null,
+            mock: node.querySelector('#pipe-chat-mock').checked,
+          });
+          if (!data.ok) throw new Error(data.error || '启动失败');
+          closeModal();
+          appendPipelineCard(data);
+          toast('流水线已启动，可在对话中逐步查看', 'ok', 5000);
+        } catch (err) {
+          button.disabled = false;
+          button.textContent = '运行流水线';
+          toast('启动流水线失败：' + err.message, 'err', 8000);
+        }
+      });
+    } catch (err) {
+      node.innerHTML = noticeHtml('加载 recipe / 服务器失败：' + err.message, 'err');
+    }
+  }
+
+  function appendPipelineCard(data) {
+    hideWelcome();
+    const card = el('div', 'msg assistant pipeline-msg');
+    card.dataset.apiRunId = data.run_id;
+    card.innerHTML =
+      '<div class="msg-avatar">SF</div>' +
+      '<div class="msg-body">' +
+      '<div class="msg-meta"><span class="msg-role">科研流水线</span>' +
+      '<span class="pipe-status badge badge-ghost">启动中</span></div>' +
+      '<div class="pipe-topic">' + escapeHtml(data.topic || '') + '</div>' +
+      '<div class="pipe-progress"><div class="pipe-bar"><span></span></div><span class="pipe-progress-text muted"></span></div>' +
+      '<div class="pipe-stages"><div class="muted">等待第一个阶段…</div></div>' +
+      '<div class="pipe-actions">' +
+      '<button class="btn btn-ghost btn-sm" data-pipe-action="pause" type="button">⏸ 暂停</button>' +
+      '<button class="btn btn-ghost btn-sm" data-pipe-action="stop" type="button">⏹ 停止</button>' +
+      '<a class="btn btn-ghost btn-sm hidden" data-pipe-report target="_blank" rel="noopener">📄 完整报告</a>' +
+      '<span class="pipe-hint muted"></span>' +
+      '</div>' +
+      '<details class="pipe-events"><summary>事件日志</summary><div class="pipe-event-list"></div></details>' +
+      '</div>';
+    const entry = { apiId: data.run_id, card, expanded: new Set(), timer: null, last: null };
+    card.addEventListener('click', (event) => pipelineCardEvent(event, entry));
+    $('#chat-messages').appendChild(card);
+    state.chat.pipelines[data.run_id] = entry;
+    entry.timer = setInterval(() => pollPipeline(entry), 1000);
+    pollPipeline(entry);
+    scrollChat(true);
+    return entry;
+  }
+
+  async function pollPipeline(entry) {
+    try {
+      const data = await api('/api/pipeline/' + encodeURIComponent(entry.apiId));
+      const run = data.run || {};
+      entry.last = run;
+      renderPipelineCard(entry, run);
+      if (PIPELINE_TERMINAL.has(String(run.status || ''))) {
+        if (entry.timer) clearInterval(entry.timer);
+        entry.timer = null;
+      }
+    } catch (err) {
+      const badge = entry.card.querySelector('.pipe-status');
+      if (badge) { badge.textContent = '读取失败'; badge.className = 'pipe-status badge badge-err'; }
+    }
+  }
+
+  function pipelineStageStatusText(item) {
+    if (item.done) {
+      if (item.done.ok === false) return '失败';
+      return '完成' + (item.done.duration ? ' · ' + item.done.duration + 's' : '');
+    }
+    if (item.isCurrent) return '执行中…';
+    return '等待';
+  }
+
+  function renderPipelineCard(entry, run) {
+    const card = entry.card;
+    const status = String(run.status || 'running');
+    const terminal = PIPELINE_TERMINAL.has(status);
+    const badge = card.querySelector('.pipe-status');
+    if (badge) {
+      badge.textContent = PIPELINE_STATUS_TEXT[status] || status;
+      badge.className = 'pipe-status badge ' + (status === 'done' ? 'badge-ok' : status === 'failed' ? 'badge-err' : status === 'paused' ? 'badge-warn' : 'badge-ghost');
+    }
+    const stages = Array.isArray(run.stages) ? run.stages : [];
+    const byName = {};
+    stages.forEach((item) => { if (item && item.name) byName[item.name] = item; });
+    const current = run.current_stage || null;
+    const plan = Array.isArray(run.stages_plan) ? run.stages_plan : [];
+    const items = [];
+    if (plan.length) {
+      plan.forEach((item, index) => {
+        const name = typeof item === 'string' ? item : (item.name || '');
+        const title = typeof item === 'string' ? name : (item.title || name);
+        const done = byName[name];
+        items.push({
+          name, title: (done && done.title) || title, index: index + 1,
+          done, isCurrent: Boolean(current && current.name === name),
+        });
+      });
+      stages.forEach((item) => {
+        if (!items.some((row) => row.name === item.name)) {
+          items.push({ name: item.name, title: item.title || item.name, index: item.index || items.length + 1, done: item, isCurrent: false });
+        }
+      });
+    } else {
+      stages.forEach((item, index) => items.push({ name: item.name, title: item.title || item.name, index: index + 1, done: item, isCurrent: false }));
+      if (current && !items.some((row) => row.name === current.name)) {
+        items.push({ name: current.name, title: current.title || current.name, index: current.index || items.length + 1, done: null, isCurrent: true });
+      }
+    }
+    const container = card.querySelector('.pipe-stages');
+    if (container) {
+      container.innerHTML = items.map((item) => {
+        const done = item.done;
+        const stateClass = done ? (done.ok === false ? 'fail' : 'done') : (item.isCurrent ? 'running' : 'pending');
+        const expanded = entry.expanded.has(item.name);
+        let body = '';
+        if (done || item.isCurrent) {
+          const content = done && done.content ? renderMarkdown(done.content) : (item.isCurrent ? '<div class="muted">执行中…（阶段结束后可展开完整输出与产物）</div>' : '');
+          const links = ((done && done.artifact_links) || []).map((link) =>
+            '<a class="file-link" href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener">📎 ' + escapeHtml(link.name) + '</a>' +
+            '<a class="file-link" href="' + escapeHtml(link.download) + '">⬇ 下载</a>'
+          ).join('');
+          body = '<div class="pipe-stage-body' + (expanded ? '' : ' hidden') + '">' +
+            (content || '<div class="muted">（暂无输出）</div>') +
+            (links ? '<div class="file-links">' + links + '</div>' : '') +
+            '</div>';
+        }
+        return '<div class="pipe-stage ' + stateClass + '">' +
+          '<button type="button" class="pipe-stage-head" data-pipe-stage="' + escapeHtml(item.name) + '">' +
+          '<span class="pipe-dot"></span>' +
+          '<span class="pipe-stage-title">' + String(item.index).padStart(2, '0') + ' · ' + escapeHtml(item.title) + '</span>' +
+          '<span class="pipe-stage-status">' + pipelineStageStatusText(item) + '</span>' +
+          '<span class="pipe-caret">' + (expanded ? '▾' : '▸') + '</span>' +
+          '</button>' + body + '</div>';
+      }).join('') || '<div class="muted">等待第一个阶段…</div>';
+    }
+    const completed = items.filter((row) => row.done).length;
+    const total = items.length || plan.length || 1;
+    const bar = card.querySelector('.pipe-bar span');
+    if (bar) bar.style.width = Math.round((completed / total) * 100) + '%';
+    const progressText = card.querySelector('.pipe-progress-text');
+    if (progressText) progressText.textContent = completed + ' / ' + total + ' 阶段';
+
+    const pauseButton = card.querySelector('[data-pipe-action="pause"]');
+    const stopButton = card.querySelector('[data-pipe-action="stop"]');
+    const paused = Boolean(run.paused) || status === 'paused';
+    if (pauseButton) {
+      pauseButton.textContent = paused ? '▶ 继续' : '⏸ 暂停';
+      pauseButton.disabled = terminal;
+    }
+    if (stopButton) stopButton.disabled = terminal;
+    const hint = card.querySelector('.pipe-hint');
+    if (hint) {
+      hint.textContent = terminal ? '' : paused ? '已暂停（当前步骤完成后生效）' : '可随时暂停 / 继续 / 停止';
+    }
+    const report = card.querySelector('[data-pipe-report]');
+    if (report) {
+      if (run.report_url) {
+        report.href = run.report_url;
+        report.classList.remove('hidden');
+      } else {
+        report.classList.add('hidden');
+      }
+    }
+    const eventList = card.querySelector('.pipe-event-list');
+    if (eventList) {
+      const events = (run.events || []).slice(-12).reverse();
+      eventList.innerHTML = events.length ? events.map((event) => {
+        const payload = event.payload || {};
+        let text = event.kind;
+        if (event.kind === 'stage') {
+          text = '阶段 ' + (payload.name || payload.phase || '') + (payload.phase === 'end' ? (payload.ok ? ' ✓' : ' ✗') : ' ' + (payload.phase || ''));
+        } else if (event.kind === 'tool_call') {
+          text = '工具调用 ' + (payload.name || '');
+        } else if (event.kind === 'tool_result') {
+          text = '工具结果 ' + (payload.name || '') + (payload.ok === false ? ' ✗' : ' ✓');
+        } else if (event.kind === 'assistant') {
+          text = '模型第 ' + (payload.step || '?') + ' 步';
+        }
+        return '<div class="pipe-event"><span class="muted">' + escapeHtml(new Date((event.ts || 0) * 1000).toLocaleTimeString()) + '</span> ' + escapeHtml(text) + '</div>';
+      }).join('') : '<div class="muted">暂无事件</div>';
+    }
+  }
+
+  async function pipelineControl(entry, action) {
+    try {
+      const data = await apiPost('/api/pipeline/' + encodeURIComponent(entry.apiId) + '/' + action, {});
+      if (!data.ok) throw new Error(data.error || '操作失败');
+      toast(action === 'pause' ? '已请求暂停' : action === 'resume' ? '已继续运行' : '已请求停止', 'ok', 2500);
+      pollPipeline(entry);
+    } catch (err) {
+      toast('流水线操作失败：' + err.message, 'err', 8000);
+    }
+  }
+
+  function pipelineCardEvent(event, entry) {
+    const actionButton = event.target.closest('[data-pipe-action]');
+    if (actionButton) {
+      const run = entry.last || {};
+      const paused = Boolean(run.paused) || String(run.status || '') === 'paused';
+      const action = actionButton.dataset.pipeAction;
+      if (action === 'pause') pipelineControl(entry, paused ? 'resume' : 'pause');
+      else if (action === 'stop') pipelineControl(entry, 'stop');
+      return;
+    }
+    const head = event.target.closest('[data-pipe-stage]');
+    if (head) {
+      const name = head.dataset.pipeStage;
+      if (entry.expanded.has(name)) entry.expanded.delete(name); else entry.expanded.add(name);
+      if (entry.last) renderPipelineCard(entry, entry.last);
+    }
+  }
+
   function bindChat() {
     const form = $('#chat-form');
     const input = $('#chat-input');
@@ -997,6 +1263,7 @@
     });
     $('#new-session').addEventListener('click', resetChat);
     $('#history-btn').addEventListener('click', showSessionHistory);
+    $('#pipeline-btn').addEventListener('click', openPipelineDialog);
     document.querySelectorAll('#quick-chips .chip').forEach((chip) => {
       chip.addEventListener('click', () => {
         const prompt = chip.dataset.prompt || chip.textContent;

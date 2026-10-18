@@ -19,6 +19,7 @@ from sciforge.config import Settings, ensure_dirs, get_settings
 from sciforge.core.events import EventBus
 from sciforge.core.registry import ToolContext
 from sciforge.llm.router import LLMRouter
+from sciforge.pipeline.control import RunControl
 from sciforge.pipeline.recipes import RECIPES, get_recipe
 from sciforge.pipeline.types import PipelineRun, Recipe, Stage, StageResult
 
@@ -44,6 +45,7 @@ class PipelineRunner:
         self.router = router or LLMRouter(self.settings, force_mock=mock)
         self.mock = bool(mock if mock is not None else self.router.force_mock)
         self.bus = bus or EventBus()
+        self.control = RunControl()
 
     # ------------------------------------------------------------------
     def _emit(self, kind: str, payload: dict[str, Any]) -> None:
@@ -172,6 +174,7 @@ class PipelineRunner:
             approval="auto",
             bus=self.bus,
             temperature=self.settings.agent.temperature,
+            control=self.control,
         )
         result = agent.run(prompt)
 
@@ -232,6 +235,15 @@ class PipelineRunner:
         return base + extra
 
     # ------------------------------------------------------------------
+    def pause(self) -> bool:
+        return self.control.pause()
+
+    def resume(self) -> None:
+        self.control.resume()
+
+    def stop(self) -> None:
+        self.control.stop()
+
     def run(
         self,
         recipe: str | Recipe,
@@ -273,12 +285,27 @@ class PipelineRunner:
                 "recipe": recipe_obj.name,
                 "topic": topic,
                 "stages": [s.name for s in recipe_obj.stages],
+                "run_dir": str(run.run_dir),
+                "server": run.server,
+                "dataset": run.dataset,
             },
         )
 
         skip = set(skip_stages or [])
         stopped_early = False
         for index, stage in enumerate(recipe_obj.stages, start=1):
+            if self.control.paused:
+                run.status = "paused"
+                self._write_manifest(run)
+                self._emit("stage", {"phase": "paused", "run_id": run.run_id})
+                if not self.control.wait_if_paused():
+                    run.status = "stopped"
+                    break
+                run.status = "running"
+                self._emit("stage", {"phase": "resumed", "run_id": run.run_id})
+            if self.control.stopped:
+                run.status = "stopped"
+                break
             if stage.name in skip:
                 run.stages.append(
                     StageResult(name=stage.name, title=stage.title, ok=True, skipped=True)
@@ -289,6 +316,9 @@ class PipelineRunner:
             stage_result = self._run_stage(run, stage, index, len(recipe_obj.stages))
             run.stages.append(stage_result)
             self._write_manifest(run)
+            if self.control.stopped:
+                run.status = "stopped"
+                break
             if until and stage.name == until:
                 stopped_early = True
             if not stage_result.ok and self.settings.pipeline.stop_on_stage_error:
@@ -296,6 +326,8 @@ class PipelineRunner:
                 run.error = f"阶段 {stage.name} 失败：{stage_result.error}"
                 break
 
+        if self.control.stopped:
+            run.status = "stopped"
         if run.status == "running":
             executed = [s for s in run.stages if not s.skipped]
             if stopped_early:

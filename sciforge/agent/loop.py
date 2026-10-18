@@ -47,6 +47,7 @@ class AgentLoop:
         bus: EventBus | None = None,
         max_tool_output_chars: int = 12000,
         temperature: float | None = None,
+        control: Any = None,
     ) -> None:
         # 确保内置工具已注册（工具模块 import 时自注册）
         import sciforge.tools  # noqa: F401
@@ -61,6 +62,7 @@ class AgentLoop:
         self.bus = bus
         self.max_tool_output_chars = max_tool_output_chars
         self.temperature = temperature
+        self.control = control
 
         available = list_tools()
         if tools is not None:
@@ -122,6 +124,14 @@ class AgentLoop:
         while limit is None or step < limit:
             step += 1
             steps = step
+            if self.control is not None:
+                if getattr(self.control, "paused", False):
+                    self._emit("stage", {"phase": "paused", "step": step})
+                if not self.control.wait_if_paused():
+                    stopped_reason = "stopped"
+                    final_content = "运行已被用户停止。"
+                    self._emit("stage", {"phase": "resumed", "step": step})
+                    break
             on_delta = None
             if self.stream:
                 on_delta = lambda piece: self._emit("llm_delta", {"text": piece})  # noqa: E731

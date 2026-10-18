@@ -898,6 +898,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.project_dir = project_dir
     app.state.sessions: dict[str, dict[str, Any]] = {}
     app.state.pipeline_runs: dict[str, dict[str, Any]] = {}
+    app.state.pipeline_runners: dict[str, Any] = {}
     app.state.lock = threading.RLock()
     app.state.started_at = time.time()
     _bootstrap_tools()
@@ -2041,6 +2042,10 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
             "duration": None,
             "error": None,
             "stages": [],
+            "stages_plan": [],
+            "current_stage": None,
+            "paused": False,
+            "stop_requested": False,
             "artifacts": [],
             "events": [],
             "run_dir": None,
@@ -2052,6 +2057,50 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                     record["events"].append(
                         {"kind": event.kind, "payload": _jsonable(event.payload, max_str=2000), "ts": event.ts}
                     )
+                if event.kind != "stage" or not isinstance(event.payload, dict):
+                    return
+                payload = event.payload
+                phase = payload.get("phase")
+                if phase == "run_start":
+                    record["status"] = "running"
+                    record["run_id"] = payload.get("run_id")
+                    record["stages_plan"] = list(payload.get("stages") or [])
+                    raw_dir = payload.get("run_dir")
+                    if raw_dir:
+                        record["run_dir"] = _rel_posix(project_dir, raw_dir)
+                elif phase == "run_end":
+                    record["status"] = str(payload.get("status") or record.get("status"))
+                    record["current_stage"] = None
+                elif phase == "start":
+                    record["status"] = "running"
+                    record["current_stage"] = {
+                        "name": payload.get("name"),
+                        "title": payload.get("title"),
+                        "index": payload.get("index"),
+                        "total": payload.get("total"),
+                    }
+                elif phase == "end":
+                    entry = {
+                        "name": payload.get("name"),
+                        "title": payload.get("title"),
+                        "index": payload.get("index"),
+                        "total": payload.get("total"),
+                        "ok": bool(payload.get("ok")),
+                        "duration": payload.get("duration"),
+                        "artifacts": _rel_artifacts(project_dir, payload.get("artifacts") or []),
+                        "error": payload.get("error"),
+                    }
+                    stages = [item for item in record.get("stages") or [] if item.get("name") != entry["name"]]
+                    stages.append(entry)
+                    stages.sort(key=lambda item: int(item.get("index") or 0))
+                    record["stages"] = stages
+                    record["current_stage"] = None
+                elif phase == "paused":
+                    record["status"] = "paused"
+                    record["paused"] = True
+                elif phase == "resumed":
+                    record["status"] = "running"
+                    record["paused"] = False
 
         bus.subscribe(on_event)
         with app.state.lock:
@@ -2062,6 +2111,8 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
                 from sciforge.pipeline.engine import PipelineRunner
 
                 runner = PipelineRunner(settings, project_dir, mock=mock, bus=bus)
+                with app.state.lock:
+                    app.state.pipeline_runners[api_run_id] = runner
                 run = runner.run(
                     recipe, topic, until=req.until, server=req.server, dataset=req.dataset
                 )
@@ -2132,7 +2183,113 @@ def _register_api_routes(app: FastAPI, settings: Settings, project_dir: Path) ->
         for rel in snapshot.get("artifacts") or []:
             artifacts.append({"path": rel, "url": f"/files/{quote(rel)}"})
         snapshot["artifact_links"] = artifacts
+
+        # 运行控制状态（暂停 / 继续 / 停止）
+        with app.state.lock:
+            runner = app.state.pipeline_runners.get(run_id)
+        if runner is not None:
+            snapshot["paused"] = bool(runner.control.paused)
+            snapshot["stopped"] = bool(runner.control.stopped)
+        terminal = str(snapshot.get("status") or "") in {"done", "failed", "stopped", "partial"}
+        snapshot["controllable"] = bool(runner is not None and not terminal)
+
+        # 从磁盘补齐每个阶段的详细输出 / 产物链接，供对话内逐步展示
+        run_dir_rel = snapshot.get("run_dir")
+        base = (project_dir / str(run_dir_rel)) if run_dir_rel else None
+        enriched: list[dict[str, Any]] = []
+        for item in snapshot.get("stages") or []:
+            if not isinstance(item, dict):
+                continue
+            entry = dict(item)
+            name = str(entry.get("name") or "")
+            if base is not None and name:
+                stage_dirs = sorted(base.glob(f"??-{name}"))
+                if stage_dirs:
+                    stage_dir = stage_dirs[-1]
+                    entry["stage_dir"] = _rel_posix(project_dir, stage_dir)
+                    output = stage_dir / "output.md"
+                    if output.is_file():
+                        try:
+                            entry["content"] = output.read_text(encoding="utf-8", errors="replace")[:12000]
+                        except OSError:
+                            entry["content"] = ""
+                    links = []
+                    for artifact in entry.get("artifacts") or []:
+                        rel = str(artifact)
+                        if not rel.startswith(".") and not rel.startswith("/"):
+                            rel = _rel_posix(project_dir, stage_dir / rel) or rel
+                        if rel:
+                            links.append(
+                                {
+                                    "path": rel,
+                                    "name": Path(rel).name,
+                                    "url": f"/files/{quote(rel)}",
+                                    "download": f"/api/download/{quote(rel)}",
+                                }
+                            )
+                    entry["artifact_links"] = links
+            enriched.append(entry)
+        snapshot["stages"] = enriched
+
+        if base is not None:
+            report = base / "REPORT.md"
+            report_rel = _rel_posix(project_dir, report)
+            snapshot["report_url"] = f"/files/{quote(report_rel)}" if report_rel else None
+            snapshot["report_download"] = f"/api/download/{quote(report_rel)}" if report_rel else None
+        else:
+            snapshot["report_url"] = None
+            snapshot["report_download"] = None
         return {"ok": True, "available": True, "source": "memory", "run": snapshot}
+
+    @app.post("/api/pipeline/{run_id}/pause")
+    def api_pipeline_pause(run_id: str) -> dict[str, Any]:
+        with app.state.lock:
+            runner = app.state.pipeline_runners.get(run_id.strip())
+            record = app.state.pipeline_runs.get(run_id.strip())
+        if record is None and runner is None:
+            raise HTTPException(status_code=404, detail=f"未找到运行中的 pipeline：{run_id}")
+        if runner is None:
+            return {"ok": False, "error": "pipeline 尚未开始或不受控制"}
+        if record and str(record.get("status") or "") in {"done", "failed", "stopped", "partial"}:
+            return {"ok": False, "error": "pipeline 已结束"}
+        runner.pause()
+        if record is not None:
+            with app.state.lock:
+                record["status"] = "paused"
+                record["paused"] = True
+        return {"ok": True, "paused": True, "status": "paused"}
+
+    @app.post("/api/pipeline/{run_id}/resume")
+    def api_pipeline_resume(run_id: str) -> dict[str, Any]:
+        with app.state.lock:
+            runner = app.state.pipeline_runners.get(run_id.strip())
+            record = app.state.pipeline_runs.get(run_id.strip())
+        if record is None and runner is None:
+            raise HTTPException(status_code=404, detail=f"未找到 pipeline：{run_id}")
+        if runner is None:
+            return {"ok": False, "error": "pipeline 尚未开始或不受控制"}
+        runner.resume()
+        if record is not None:
+            with app.state.lock:
+                record["status"] = "running"
+                record["paused"] = False
+        return {"ok": True, "paused": False, "status": "running"}
+
+    @app.post("/api/pipeline/{run_id}/stop")
+    def api_pipeline_stop(run_id: str) -> dict[str, Any]:
+        with app.state.lock:
+            runner = app.state.pipeline_runners.get(run_id.strip())
+            record = app.state.pipeline_runs.get(run_id.strip())
+        if record is None and runner is None:
+            raise HTTPException(status_code=404, detail=f"未找到 pipeline：{run_id}")
+        if runner is None:
+            return {"ok": False, "error": "pipeline 尚未开始或不受控制"}
+        runner.stop()
+        if record is not None:
+            with app.state.lock:
+                record["stop_requested"] = True
+                record["status"] = "stopping"
+        return {"ok": True, "stopped": True, "status": "stopping"}
 
     @app.get("/api/runs")
     def api_runs(limit: int = 20) -> dict[str, Any]:

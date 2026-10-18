@@ -1080,3 +1080,39 @@ def test_katex_assets_and_math_hooks(client: TestClient) -> None:
     js = (static / "app.js").read_text(encoding="utf-8")
     assert "function renderTex" in js
     assert "math-block" in js
+
+
+def test_pipeline_control_endpoints(client: TestClient) -> None:
+    class FakeControl:
+        paused = False
+        stopped = False
+
+    class FakeRunner:
+        def __init__(self) -> None:
+            self.control = FakeControl()
+            self.calls: list[str] = []
+
+        def pause(self) -> None:
+            self.calls.append("pause")
+            self.control.paused = True
+
+        def resume(self) -> None:
+            self.calls.append("resume")
+            self.control.paused = False
+
+        def stop(self) -> None:
+            self.calls.append("stop")
+            self.control.stopped = True
+
+    runner = FakeRunner()
+    client.app.state.pipeline_runners["fake-run"] = runner
+    client.app.state.pipeline_runs["fake-run"] = {"status": "running", "events": [], "stages": []}
+
+    paused = client.post("/api/pipeline/fake-run/pause").json()
+    assert paused["ok"] is True and paused["paused"] is True
+    resumed = client.post("/api/pipeline/fake-run/resume").json()
+    assert resumed["ok"] is True and resumed["paused"] is False
+    stopped = client.post("/api/pipeline/fake-run/stop").json()
+    assert stopped["ok"] is True
+    assert runner.calls == ["pause", "resume", "stop"]
+    assert client.post("/api/pipeline/unknown-run/pause").status_code == 404

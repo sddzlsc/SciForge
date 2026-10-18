@@ -42,7 +42,7 @@ Literature → Deep-read → Idea mining → Experiments on GPU → Analysis →
 | ✍️ Writing | LaTeX projects (CVPR/NeurIPS/ICLR/ACL/generic), citations, compile checks, reviewer-style self-check | `sciforge write ...` |
 | 🎨 Figures | Conference-style architecture diagrams (declarative DSL → SVG/PDF), plots, booktabs tables | `sciforge fig ...` |
 | 🧩 Orchestration | Recipe pipelines with resumable stage artifacts | `sciforge pipeline ...` |
-| 🖥️ Web console | Local GUI: streaming chat (Markdown + offline KaTeX math), literature, GPU, experiments, figures, skills, models | `sciforge serve` |
+| 🖥️ Web console | Local GUI: streaming chat (Markdown + offline KaTeX math), **in-chat pipeline with expandable stages + pause/resume/stop**, literature, GPU, experiments, figures, skills, models | `sciforge serve` |
 | 🤝 DSH | Install skills into DSH (DeepSeek Harness) and drive SciForge from the host agent | `sciforge dsh install` |
 
 ## Screenshots
@@ -195,6 +195,19 @@ sciforge pipeline run --recipe full --topic "..." --server gpu1 --dataset ./data
 
 The GUI experiment page exposes the same `GPU server` / `dataset path` fields and shows live
 per-stage status and artifacts.
+
+### Run the pipeline inside the chat (pausable)
+
+Click **🧪 Pipeline** in the chat toolbar, fill in topic / server / dataset, and start. The run appears
+as a message in the conversation:
+
+- stage-by-stage status, duration and artifacts; **click a stage to expand its full output**
+- **⏸ pause / ▶ resume / ⏹ stop** at any time (pause takes effect at the next LLM step or stage boundary)
+- event log with stage transitions, tool calls and model steps
+- when finished: open the full report or download per-stage artifacts
+- the pipeline runs in the background, so the chat stays responsive
+
+The Experiments page still keeps the historical run list for comparison.
 
 Each run writes resumable artifacts:
 

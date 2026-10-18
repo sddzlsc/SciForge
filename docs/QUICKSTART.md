@@ -75,11 +75,17 @@ sciforge write review
 sciforge write compile
 ```
 
-## 8. Web 控制台
+## 8. 可视化 GUI（本地网页）
 
 ```bash
-sciforge serve        # http://127.0.0.1:8765
+sciforge gui                     # 启动并自动打开浏览器：http://127.0.0.1:8765
+sciforge gui --project ~/my-research --port 8765
+sciforge serve --open            # 等价；不带 --open 时手动打开 URL
 ```
+
+页面：对话（流式 + 工具卡片） / 文献（实时 arXiv + 每日摘要 + 本地库） / 服务器（GPU 状态） /
+实验（pipeline 运行与历史） / 图表（配图与 PDF 预览） / 技能（一键装 DSH） / 关于（状态与安全边界）。
+无 API key 时会自动进入离线 Mock 演示，配好 key 后同一界面直接走真实模型。
 
 ## 常见问题
 

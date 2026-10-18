@@ -711,7 +711,12 @@ def demo(
         _serve(dest, None, None)
 
 
-def _serve(project: Path | None, host: str | None, port: int | None) -> None:
+def _serve(
+    project: Path | None,
+    host: str | None,
+    port: int | None,
+    open_browser: bool | None = None,
+) -> None:
     try:
         from sciforge.web.server import run_server
     except Exception as exc:  # noqa: BLE001
@@ -720,6 +725,8 @@ def _serve(project: Path | None, host: str | None, port: int | None) -> None:
         )
         raise typer.Exit(1) from exc
     settings = _settings(project)
+    if open_browser is not None:
+        settings.web.open_browser = open_browser
     run_server(host=host, port=port, settings=settings)
 
 
@@ -728,9 +735,22 @@ def serve(
     project: Path | None = typer.Option(None, "--project", "-p"),
     host: str | None = typer.Option(None, "--host"),
     port: int | None = typer.Option(None, "--port"),
+    open_browser: bool | None = typer.Option(
+        None, "--open/--no-open", help="启动后自动打开浏览器"
+    ),
 ) -> None:
     """启动本地 Web 控制台（默认 http://127.0.0.1:8765）。"""
-    _serve(project, host, port)
+    _serve(project, host, port, open_browser)
+
+
+@app.command("gui")
+def gui(
+    project: Path | None = typer.Option(None, "--project", "-p", help="项目目录，默认当前目录"),
+    port: int = typer.Option(8765, "--port"),
+) -> None:
+    """一键启动可视化 GUI：本地网页控制台并自动打开浏览器。"""
+    console.print(f"[cyan]SciForge GUI[/cyan] → 启动本地控制台（端口 {port}）…")
+    _serve(project, None, port, open_browser=True)
 
 
 # ---------------------------------------------------------------------------

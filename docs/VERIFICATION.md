@@ -31,6 +31,9 @@ SCIFORGE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -m integration -q
 | test_skills | Skill 解析/lint/安装/DSH 目标隔离/外部目录 |
 | test_web | SSE 对话、pipeline 轮询、目录穿越防护、脱敏、静态页 |
 
+GUI 实跑验收（2026-10-18）：`sciforge gui` 启动后 headless Chrome 逐页截图；
+`POST /api/chat` 返回 `meta/stage/llm_delta/...` 事件流，`POST /api/pipeline/run` 后台完成并轮询到 `done`。
+
 ## 3. 产物
 
 | 产物 | 路径 |
@@ -38,7 +41,8 @@ SCIFORGE_RUN_INTEGRATION=1 .venv/bin/python -m pytest -m integration -q
 | 架构图（SVG/PNG + spec） | `sciforge/templates/figures/outputs/fig1_architecture.*`、`fig3_transformer_block.*` |
 | 实验曲线（PDF/SVG/PNG） | `sciforge/templates/figures/outputs/fig2_curves.*` |
 | 三线表（LaTeX/Markdown） | `sciforge/templates/figures/outputs/table_main_results.*` |
-| Web 截图 | `examples/demo/screenshots/` |
+| GUI 实跑截图 | `examples/demo/screenshots/live-console-*.png` |
+| Web 截图（早期） | `examples/demo/screenshots/console-*.jpg` |
 | 离线演示 | `sciforge demo` → `sciforge-demo/DEMO.md` |
 | DSH 技能 | `~/.dsh/skills/*/SKILL.md`（24 个） |
 

@@ -70,19 +70,40 @@ SciForge 不是从零发明，而是把下列公开生态的能力**重组为一
 | [skills.scansci.com](https://skills.scansci.com/) · Rimagination 科研扩展（instsci / scansci-svg / easyplot / easyslides / easymd / good-question / good-story / easymeta / mineru-go / chuan-check …） | 科研 Agent 扩展生态目录与安装方式 | `sciforge/catalog/skills.json`、`sciforge skills install <name>` |
 | [DeepSeek Harness (DSH)](https://github.com/deepseek-ai) | Skill 目录规范与宿主 Agent | `sciforge dsh install` → `~/.dsh/skills/` |
 
-## 界面预览
+## 可视化 GUI（本地网页）
 
-本地 Web 控制台（`sciforge serve`，深/浅主题、SSE 流式、工具调用卡片）：
+一条命令启动，浏览器里完成全部科研操作：
 
-![对话 · 工具调用流式演示](examples/demo/screenshots/console-chat.jpg)
+```bash
+sciforge gui                                  # 启动本地控制台并自动打开浏览器（默认 127.0.0.1:8765）
+sciforge gui --project ~/my-research --port 8765
+sciforge serve --open                         # 等价写法；不自动开浏览器则用 sciforge serve
+```
 
-![文献检索 · 每日 arXiv / 文献库](examples/demo/screenshots/console-literature.jpg)
+七个页面：**对话 / 文献 / 服务器 / 实验 / 图表 / 技能 / 关于**
 
-顶会级配图与论文工程（`sciforge fig` / `sciforge write`，均由声明式 spec 可复现）：
+| 页面 | 能力 |
+|---|---|
+| 对话 | SSE 流式输出、工具调用折叠卡（参数/结果/耗时）、6 个科研快捷任务；无 API key 自动离线 Mock |
+| 文献 | 实时 arXiv 检索、每日 arXiv 中文速览、本地文献库；一键「精读 / 入库 / PDF」 |
+| 服务器 | GPU 服务器卡片 + nvidia-smi 状态表；未配置时显示本机 MPS 提示 |
+| 实验 | 选 Recipe → 填研究主题 → 后台跑 pipeline → 阶段/事件/产物/历史，实时轮询 |
+| 图表 | 论文级配图画廊：模型图 SVG/PNG、曲线 PDF、三线表，支持图片与 PDF 预览 |
+| 技能 | 24 个科研 Skill 卡片、lint 状态、一键安装到 DSH |
+| 关于 | 运行状态、工具清单、安全边界与 API 端点 |
 
-![模型架构图 Figure 1](sciforge/templates/figures/outputs/fig1_architecture.png)
+安全约束：只监听 `127.0.0.1`（拒绝 0.0.0.0）；`/api/servers` 永不回传密钥；
+`/figures`、`/files` 做项目根路径校验（拒绝目录穿越/符号链接逃逸）。
 
-![实验曲线与显著性标注](sciforge/templates/figures/outputs/fig2_curves.png)
+实跑截图（由 `sciforge gui` 启动后截取）：
+
+![GUI 对话：流式工具调用](examples/demo/screenshots/live-console-chat.png)
+
+![GUI 文献：实时 arXiv 与 demo fixtures](examples/demo/screenshots/live-console-literature.png)
+
+![GUI 实验：Pipeline 运行与历史](examples/demo/screenshots/live-console-experiments.png)
+
+![GUI 图表：论文配图与 PDF 产物](examples/demo/screenshots/live-console-figures.png)
 
 ## 核心能力
 

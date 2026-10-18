@@ -31,3 +31,6 @@ config.local.toml
 /research-state.yaml
 /findings.md
 /research-log.md
+
+# 默认 demo 输出目录
+/sciforge-demo/

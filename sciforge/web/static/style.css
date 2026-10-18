@@ -926,7 +926,7 @@ html[data-theme="light"] .msg.user .msg-content {
 .run-status.running { color: var(--accent-text); background: var(--accent-soft); }
 
 /* ------------------------------- 图表 / 产物 ------------------------------- */
-.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 13px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 
 .shot {
   display: flex;
@@ -941,7 +941,7 @@ html[data-theme="light"] .msg.user .msg-content {
 .shot-thumb {
   display: grid;
   place-items: center;
-  height: 160px;
+  height: 200px;
   overflow: hidden;
   background:
     linear-gradient(45deg, rgba(120, 160, 210, 0.08) 25%, transparent 25%, transparent 75%, rgba(120, 160, 210, 0.08) 75%) 0 0 / 16px 16px,
@@ -950,7 +950,12 @@ html[data-theme="light"] .msg.user .msg-content {
   border-bottom: 1px solid var(--border-soft);
   padding: 8px;
 }
-.shot-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.shot-thumb img { width: 100%; height: 100%; object-fit: contain; }
+/* 论文配图多为白底，预览时给白色衬底比透明棋盘格更接近最终效果 */
+.shot-thumb img[src$=".png"],
+.shot-thumb img[src$=".jpg"],
+.shot-thumb img[src$=".jpeg"],
+.shot-thumb img[src$=".svg"] { background: #ffffff; border-radius: 4px; padding: 4px; }
 .shot-thumb .placeholder { font-size: 30px; opacity: 0.6; }
 .shot-body { padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; }
 .shot-name { font-family: var(--font-mono); font-size: 11.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
